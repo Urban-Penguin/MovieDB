@@ -386,14 +386,18 @@ public class CastActivity extends BaseActivity {
             DateFormat localFormat = DateFormat.getDateInstance(DateFormat.DEFAULT, Locale.getDefault());
             if (actorObject.has("birthday") && !actorObject.getString("birthday").equals(binding.actorBirthday
                     .getText().toString())) {
-                Date birthday = sdf.parse(actorObject.getString("birthday"));
-                String birthdayString = localFormat.format(birthday);
-                if (actorObject.isNull("deathday")) {
-                    Date currentDate = new Date();
-                    long currentAge = Math.floorDiv(TimeUnit.DAYS.convert(Math.abs(currentDate.getTime() - birthday.getTime()), TimeUnit.MILLISECONDS), 365);
-                    binding.actorBirthday.setText(getString(R.string.birthday) + birthdayString + " (" + currentAge + " " + getString(R.string.years) + ")");
+                if (actorObject.isNull("birthday")) {
+                    binding.actorBirthday.setText(getString(R.string.birthday) + actorObject.getString("birthday"));
                 } else {
-                    binding.actorBirthday.setText(getString(R.string.birthday) + birthdayString);
+                    Date birthday = sdf.parse(actorObject.getString("birthday"));
+                    String birthdayString = localFormat.format(birthday);
+                    if (actorObject.isNull("deathday")) {
+                        Date currentDate = new Date();
+                        long currentAge = Math.floorDiv(TimeUnit.DAYS.convert(Math.abs(currentDate.getTime() - birthday.getTime()), TimeUnit.MILLISECONDS), 365);
+                        binding.actorBirthday.setText(getString(R.string.birthday) + birthdayString + " (" + currentAge + " " + getString(R.string.years) + ")");
+                    } else {
+                        binding.actorBirthday.setText(getString(R.string.birthday) + birthdayString);
+                    }
                 }
             }
 
