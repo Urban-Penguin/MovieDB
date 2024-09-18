@@ -230,7 +230,10 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
         mShowArrayList = getShowsFromDatabase(null, MovieDatabaseHelper.COLUMN_ID + " DESC")
         mShowAdapter = ShowBaseAdapter(
             mShowArrayList, mShowGenreList,
-            preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+            if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                ShowBaseAdapter.MView.GRID
+            else ShowBaseAdapter.MView.LIST,
+            false
         )
         if (!mSearchView) {
             if (usedFilter) {
@@ -598,12 +601,18 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
         if (mSearchView) {
             mShowView.adapter = ShowBaseAdapter(
                 mSearchShowArrayList, mShowGenreList,
-                preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+                if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                    ShowBaseAdapter.MView.GRID
+                else ShowBaseAdapter.MView.LIST,
+                false
             )
         } else {
             mShowView.adapter = ShowBaseAdapter(
                 mShowArrayList, mShowGenreList,
-                preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+                if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                    ShowBaseAdapter.MView.GRID
+                else ShowBaseAdapter.MView.LIST,
+                false
             )
         }
     }
@@ -617,7 +626,10 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
         mShowArrayList = getShowsFromDatabase(null, MovieDatabaseHelper.COLUMN_ID + " DESC")
         mShowAdapter = ShowBaseAdapter(
             mShowArrayList, mShowGenreList,
-            preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+            if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                ShowBaseAdapter.MView.GRID
+            else ShowBaseAdapter.MView.LIST,
+            false
         )
         mShowView.adapter = mShowAdapter
         val handler = Handler(Looper.getMainLooper())
@@ -816,7 +828,10 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
             mSearchShowBackupArrayList = mSearchShowArrayList.clone() as ArrayList<JSONObject>
             mSearchShowAdapter = ShowBaseAdapter(
                 mSearchShowArrayList, mShowGenreList,
-                preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+                if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                    ShowBaseAdapter.MView.GRID
+                else ShowBaseAdapter.MView.LIST,
+                false
             )
             mShowView.adapter = mSearchShowAdapter
 

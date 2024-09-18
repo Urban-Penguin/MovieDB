@@ -81,8 +81,12 @@ open class BaseFragment : Fragment() {
             // If the user changed from a list layout to a grid layout, reload the ShowBaseAdapter.
             if (mShowView.layoutManager !is GridLayoutManager) {
                 mShowAdapter = ShowBaseAdapter(
-                    mShowArrayList, mShowGenreList,
-                    preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+                    mShowArrayList,
+                    mShowGenreList,
+                    if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                        ShowBaseAdapter.MView.GRID
+                    else ShowBaseAdapter.MView.LIST,
+                    false
                 )
             }
             val mShowGridView = GridLayoutManager(
@@ -96,7 +100,10 @@ open class BaseFragment : Fragment() {
             if (mShowView.layoutManager !is LinearLayoutManager) {
                 mShowAdapter = ShowBaseAdapter(
                     mShowArrayList, mShowGenreList,
-                    preferences.getBoolean(SHOWS_LIST_PREFERENCE, true), false
+                    if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                        ShowBaseAdapter.MView.GRID
+                    else ShowBaseAdapter.MView.LIST,
+                    false
                 )
             }
             mShowLinearLayoutManager = LinearLayoutManager(

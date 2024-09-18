@@ -81,7 +81,7 @@ import com.wirelessalien.android.moviedb.R
 import com.wirelessalien.android.moviedb.adapter.CastBaseAdapter
 import com.wirelessalien.android.moviedb.adapter.EpisodePagerAdapter
 import com.wirelessalien.android.moviedb.adapter.SectionsPagerAdapter
-import com.wirelessalien.android.moviedb.adapter.SimilarMovieBaseAdapter
+import com.wirelessalien.android.moviedb.adapter.ShowBaseAdapter
 import com.wirelessalien.android.moviedb.databinding.ActivityDetailBinding
 import com.wirelessalien.android.moviedb.fragment.LastEpisodeFragment.Companion.newInstance
 import com.wirelessalien.android.moviedb.fragment.ListBottomSheetDialogFragment
@@ -126,7 +126,7 @@ class DetailActivity : BaseActivity() {
     private lateinit var crewAdapter: CastBaseAdapter
     private lateinit var castArrayList: ArrayList<JSONObject>
     private lateinit var crewArrayList: ArrayList<JSONObject>
-    private lateinit var similarMovieAdapter: SimilarMovieBaseAdapter
+    private lateinit var similarMovieAdapter: ShowBaseAdapter
     private lateinit var episodeViewPager: ViewPager2
     private lateinit var episodePagerAdapter: EpisodePagerAdapter
     private lateinit var similarMovieArrayList: ArrayList<JSONObject>
@@ -182,6 +182,7 @@ class DetailActivity : BaseActivity() {
             }
         }
     private lateinit var preferences: SharedPreferences
+    private var mShowGenreList: HashMap<String, String?>? = null
 
     // Indicate whether network items have loaded.
     private var mMovieDetailsLoaded = false
@@ -293,9 +294,11 @@ class DetailActivity : BaseActivity() {
 
             // Set the adapter with the (still) empty ArrayList.
             similarMovieArrayList = ArrayList()
-            similarMovieAdapter = SimilarMovieBaseAdapter(
+            similarMovieAdapter = ShowBaseAdapter(
                 similarMovieArrayList,
-                applicationContext
+                mShowGenreList,
+                ShowBaseAdapter.MView.RECOMMENDATIONS,
+                false
             )
             binding.movieRecyclerView.adapter = similarMovieAdapter
         } catch (e: JSONException) {
@@ -1949,8 +1952,8 @@ class DetailActivity : BaseActivity() {
                     val movieData = similarMovieArray.getJSONObject(i)
                     similarMovieArrayList.add(movieData)
                 }
-                similarMovieAdapter = SimilarMovieBaseAdapter(
-                    similarMovieArrayList, applicationContext
+                similarMovieAdapter = ShowBaseAdapter(
+                    similarMovieArrayList, mShowGenreList, ShowBaseAdapter.MView.RECOMMENDATIONS, false
                 )
                 binding.movieRecyclerView.adapter = similarMovieAdapter
                 mSimilarMoviesLoaded = false
