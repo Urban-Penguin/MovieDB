@@ -35,6 +35,7 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.appbar.MaterialToolbar
 import com.wirelessalien.android.moviedb.R
 import com.wirelessalien.android.moviedb.adapter.ShowBaseAdapter
+import com.wirelessalien.android.moviedb.fragment.BaseFragment
 import com.wirelessalien.android.moviedb.tmdb.account.ListDetailsThreadTMDb
 import com.wirelessalien.android.moviedb.tmdb.account.ListDetailsThreadTMDb.OnFetchListDetailsListener
 import kotlinx.coroutines.launch
@@ -106,8 +107,11 @@ class MyListDetailsActivity : AppCompatActivity(), OnFetchListDetailsListener {
         progressBar.visibility = View.VISIBLE
         loadListDetails(currentPage)
 
-        adapter = ShowBaseAdapter(ArrayList(), mShowGenreList!!,  preferences.getBoolean(
-            SHOWS_LIST_PREFERENCE, false), showDeleteButton = true)
+        adapter = ShowBaseAdapter(ArrayList(), mShowGenreList!!,  if (preferences.getBoolean(
+                BaseFragment.SHOWS_LIST_PREFERENCE, true))
+            ShowBaseAdapter.MView.GRID
+        else ShowBaseAdapter.MView.LIST,
+            showDeleteButton = false)
         recyclerView.adapter = adapter
 
         // Add scroll listener for pagination

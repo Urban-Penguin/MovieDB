@@ -127,7 +127,10 @@ class RatedListFragment : BaseFragment() {
         mShowGenreList = HashMap()
         mShowAdapter = ShowBaseAdapter(
             mShowArrayList, mShowGenreList,
-            preferences.getBoolean(SHOWS_LIST_PREFERENCE, false), false
+            if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
+                ShowBaseAdapter.MView.GRID
+            else ShowBaseAdapter.MView.LIST,
+            false
         )
         (requireActivity() as BaseActivity).checkNetwork()
     }

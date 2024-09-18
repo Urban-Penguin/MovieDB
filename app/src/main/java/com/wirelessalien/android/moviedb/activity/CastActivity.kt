@@ -27,6 +27,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
+import android.icu.text.DateFormat
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
@@ -43,7 +44,7 @@ import com.squareup.picasso.Picasso
 import com.squareup.picasso.Picasso.LoadedFrom
 import com.squareup.picasso.Target
 import com.wirelessalien.android.moviedb.R
-import com.wirelessalien.android.moviedb.adapter.SimilarMovieBaseAdapter
+import com.wirelessalien.android.moviedb.adapter.ShowBaseAdapter
 import com.wirelessalien.android.moviedb.databinding.ActivityCastBinding
 import com.wirelessalien.android.moviedb.helper.ConfigHelper
 import com.wirelessalien.android.moviedb.helper.PeopleDatabaseHelper
@@ -59,6 +60,11 @@ import java.io.BufferedReader
 import java.io.IOException
 import java.io.InputStreamReader
 import java.net.URL
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.concurrent.TimeUnit
+import java.util.Locale
+import kotlin.math.abs
 
 /**
  * This class displays information about person objects.
@@ -66,13 +72,14 @@ import java.net.URL
 class CastActivity : BaseActivity() {
     private lateinit var context: Context
     private lateinit var actorObject: JSONObject
-    private lateinit var castMovieAdapter: SimilarMovieBaseAdapter
+    private lateinit var castMovieAdapter: ShowBaseAdapter
     private lateinit var castMovieArrayList: ArrayList<JSONObject>
-    private lateinit var crewMovieAdapter: SimilarMovieBaseAdapter
+    private lateinit var crewMovieAdapter: ShowBaseAdapter
     private lateinit var crewMovieArrayList: ArrayList<JSONObject>
     private lateinit var binding: ActivityCastBinding
     private var actorId = 0
     private lateinit var target: Target
+    private var mShowGenreList: HashMap<String, String?>? = null
     private var API_KEY: String? = null
 
     /*
@@ -88,6 +95,8 @@ class CastActivity : BaseActivity() {
     private val mActorDetailsLoaded = false
     private var darkMutedColor = 0
     private var lightMutedColor = 0
+    private val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCastBinding.inflate(
@@ -140,17 +149,21 @@ class CastActivity : BaseActivity() {
 
             // Set the adapter with the (still) empty ArrayList.
             castMovieArrayList = ArrayList()
-            castMovieAdapter = SimilarMovieBaseAdapter(
+            castMovieAdapter = ShowBaseAdapter(
                 castMovieArrayList,
-                applicationContext
+                mShowGenreList,
+                ShowBaseAdapter.MView.ROLES,
+                false
             )
             binding.castMovieRecyclerView.adapter = castMovieAdapter
 
             // Set the adapter with the (still) empty ArrayList.
             crewMovieArrayList = ArrayList()
-            crewMovieAdapter = SimilarMovieBaseAdapter(
+            crewMovieAdapter = ShowBaseAdapter(
                 crewMovieArrayList,
-                applicationContext
+                mShowGenreList,
+                ShowBaseAdapter.MView.ROLES,
+                false
             )
             binding.crewMovieRecyclerView.adapter = crewMovieAdapter
         } catch (e: JSONException) {
@@ -363,11 +376,44 @@ class CastActivity : BaseActivity() {
             }
 
             // If the birthday is different in the new dataset, change it.
+            val localFormat = DateFormat.getDateInstance(DateFormat.DEFAULT, Locale.getDefault())
             if (actorObject.has("birthday") && actorObject.getString("birthday") != binding.actorBirthday
-                    .text.toString()
-            ) {
-                binding.actorBirthday.text =
-                    getString(R.string.birthday) + actorObject.getString("birthday")
+                    .text.toString()) {
+                if (actorObject.isNull("birthday")) {
+                    binding.actorBirthday.text = getString(R.string.birthday) + actorObject.getString("birthday")
+                } else {
+                    val birthday: Date = sdf.parse(actorObject.getString("birthday"))
+                    val birthdayString: String = localFormat.format(birthday)
+                    if (actorObject.isNull("deathday")) {
+                        val currentDate = Date()
+                        val currentAge: Long = Math.floorDiv(
+                            TimeUnit.DAYS.convert(
+                                abs(currentDate.time - birthday.time),
+                                TimeUnit.MILLISECONDS
+                            ), 365
+                        )
+                        binding.actorBirthday.text =
+                            getString(R.string.birthday) + birthdayString + " (" + currentAge + " " + getString(
+                                R.string.years
+                            ) + ")"
+                    } else {
+                        binding.actorBirthday.text =
+                            getString(R.string.birthday) + birthdayString
+                    }
+                }
+            }
+
+            // If the birthday is different in the new dataset, change it.
+            if (actorObject.has("deathday") && !actorObject.getString("deathday").equals(binding.actorDeathday.text.toString()) && !(actorObject.isNull("deathday"))) {
+                val birthday: Date = sdf.parse(actorObject.getString("birthday"))
+                val deathDay: Date = sdf.parse(actorObject.getString("deathday"))
+                val deathdayString: String = localFormat.format(deathDay)
+                val ageAtDeath: Long = Math.floorDiv(
+                    TimeUnit.DAYS.convert(
+                        abs(deathDay.time - birthday.time),
+                        TimeUnit.MILLISECONDS
+                    ), 365)
+                binding.actorDeathday.text = getString(R.string.deathday) + deathdayString + " (" + ageAtDeath + " " + getString(R.string.years) + ")"
             }
 
             // If the biography is different in the new dataset, change it.
@@ -459,8 +505,8 @@ class CastActivity : BaseActivity() {
 
                     // Set a new adapter so the RecyclerView
                     // shows the new items.
-                    castMovieAdapter = SimilarMovieBaseAdapter(
-                        castMovieArrayList, applicationContext
+                    castMovieAdapter = ShowBaseAdapter(
+                        castMovieArrayList, mShowGenreList, ShowBaseAdapter.MView.ROLES, false
                     )
                     binding.castMovieRecyclerView.adapter = castMovieAdapter
                 }
@@ -486,8 +532,8 @@ class CastActivity : BaseActivity() {
 
                     // Set a new adapter so the RecyclerView
                     // shows the new items.
-                    crewMovieAdapter = SimilarMovieBaseAdapter(
-                        crewMovieArrayList, applicationContext
+                    crewMovieAdapter = ShowBaseAdapter(
+                        crewMovieArrayList, mShowGenreList, ShowBaseAdapter.MView.ROLES, false
                     )
                     binding.crewMovieRecyclerView.adapter = crewMovieAdapter
                     mActorMoviesLoaded = true
@@ -538,7 +584,12 @@ class CastActivity : BaseActivity() {
     }
 
     private fun onPostExecute(actorData: JSONObject?) {
-        actorData?.let { setActorData(it) }
+        actorData?.let {
+            if (actorData.isNull("deathday")) {
+                binding.actorDeathday.visibility = View.GONE
+            }
+            setActorData(it)
+        }
     }
 
     companion object {

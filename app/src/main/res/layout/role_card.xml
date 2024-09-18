@@ -51,27 +51,27 @@
                 android:contentDescription="@string/movie_image_description"
                 android:scaleType="centerCrop" />
 
-                <TextView
-                    android:id="@+id/categoryColor"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Your Text Here"
-                    android:textColor="@android:color/white"
-                    android:background="#99000000"
-                    android:textSize="12sp"
-                    android:gravity="center"
-                    android:visibility="gone"
-                    android:padding="8dp"/>
+            <TextView
+                android:id="@+id/categoryColor"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Your Text Here"
+                android:textColor="@android:color/white"
+                android:background="#99000000"
+                android:textSize="12sp"
+                android:gravity="center"
+                android:visibility="gone"
+                android:padding="8dp"/>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/deleteButton"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="top|end"
-                    app:icon="@drawable/ic_close"
-                    android:visibility="gone"
-                    app:cornerRadius="5dip"
-                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"/>
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/deleteButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                app:icon="@drawable/ic_close"
+                android:visibility="gone"
+                app:cornerRadius="5dip"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"/>
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
@@ -88,6 +88,20 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/role"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@id/title"
+                android:layout_centerHorizontal="true"
+                android:layout_margin="5dp"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:layout_centerVertical="true"
+                android:layout_alignParentStart="true"
+                android:layout_toStartOf="@+id/date"
+                android:textSize="11sp"/>
+
+            <TextView
                 android:id="@+id/date"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -97,21 +111,8 @@
                 android:maxLines="1"
                 android:ellipsize="marquee"
                 android:layout_centerVertical="true"
-                android:layout_alignParentStart="true"
-                android:textSize="11sp" />
-
-            <TextView
-                android:id="@+id/ratingText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/title"
-                android:layout_centerHorizontal="true"
-                android:layout_margin="5dp"
-                android:maxLines="1"
-                android:ellipsize="marquee"
-                android:layout_centerVertical="true"
                 android:layout_alignParentEnd="true"
-                android:textSize="11sp"/>
+                android:textSize="11sp" />
         </RelativeLayout>
     </com.google.android.material.card.MaterialCardView>
 
