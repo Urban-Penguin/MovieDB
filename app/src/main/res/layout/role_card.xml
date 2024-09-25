@@ -51,27 +51,6 @@
                 android:contentDescription="@string/movie_image_description"
                 android:scaleType="centerCrop" />
 
-            <TextView
-                android:id="@+id/categoryColor"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="Your Text Here"
-                android:textColor="@android:color/white"
-                android:background="#99000000"
-                android:textSize="12sp"
-                android:gravity="center"
-                android:visibility="gone"
-                android:padding="8dp"/>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/deleteButton"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="top|end"
-                app:icon="@drawable/ic_close"
-                android:visibility="gone"
-                app:cornerRadius="5dip"
-                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"/>
             </com.google.android.material.card.MaterialCardView>
 
             <TextView
