@@ -60,7 +60,8 @@ class ShowBaseAdapter(
         GRID,
         LIST,
         RECOMMENDATIONS,
-        ROLES
+        ROLES,
+        FILMOGRAPHY
     }
 
     init {
@@ -97,8 +98,11 @@ class ShowBaseAdapter(
             MView.RECOMMENDATIONS -> {
                 LayoutInflater.from(parent.context).inflate(R.layout.movie_card, parent, false)
             }
-            else -> {
+            MView.ROLES -> {
                 LayoutInflater.from(parent.context).inflate(R.layout.role_card, parent, false)
+            }
+            else -> {
+                LayoutInflater.from(parent.context).inflate(R.layout.filmography_card, parent, false)
             }
         }
         return ShowItemViewHolder(view, mGridView)
@@ -116,7 +120,7 @@ class ShowBaseAdapter(
             val loadHDImage = defaultSharedPreferences.getBoolean(HD_IMAGE_SIZE, false)
             val imageSize = if (loadHDImage) "w780" else "w500"
 
-            if (mGridView == MView.GRID || mGridView == MView.LIST) {
+            if (mGridView == MView.GRID || mGridView == MView.LIST || mGridView == MView.FILMOGRAPHY) {
                 if (showData.getString(KEY_POSTER) == "null") {
                     holder.showImage.setImageDrawable(
                         ResourcesCompat.getDrawable(
@@ -180,7 +184,7 @@ class ShowBaseAdapter(
                     (holder.categoryColorView as TextView).text = categoryText
                     holder.categoryColorView.setVisibility(View.VISIBLE)
                 } else {
-                    holder.categoryColorView.visibility = View.GONE
+                    holder.categoryColorView?.visibility = View.GONE
                 }
             }
 
@@ -265,6 +269,22 @@ class ShowBaseAdapter(
                 if (showData.has(KEY_CREW_JOB)) {
                     holder.showRole?.text = showData.getString(KEY_CREW_JOB)
                 }
+            } else if (mGridView == MView.FILMOGRAPHY) {
+                if (showData.getString("media_type").equals("tv")) {
+                    holder.detailButton?.visibility = View.VISIBLE
+                } else {
+                    holder.detailButton?.visibility = View.GONE
+                }
+
+                holder.showRating?.rating = showData.getString(KEY_RATING).toFloat() / 2
+
+                if (showData.has(KEY_CHARACTER)) {
+                    holder.showRole?.text = showData.getString(KEY_CHARACTER)
+                }
+
+                if (showData.has(KEY_CREW_JOB)) {
+                    holder.showRole?.text = showData.getString(KEY_CREW_JOB)
+                }
             }
         } catch (e: JSONException) {
             e.printStackTrace()
@@ -282,8 +302,8 @@ class ShowBaseAdapter(
 
         if (mGridView == MView.GRID || mGridView == MView.LIST) {
             if (showDeleteButton) {
-                holder.deleteButton.visibility = View.VISIBLE
-                holder.deleteButton.setOnClickListener {
+                holder.deleteButton?.visibility = View.VISIBLE
+                holder.deleteButton?.setOnClickListener {
                     val mediaId: Int
                     val type: String
                     try {
@@ -310,7 +330,7 @@ class ShowBaseAdapter(
                     }
                 }
             } else {
-                holder.deleteButton.visibility = View.GONE
+                holder.deleteButton?.visibility = View.GONE
             }
         }
     }
@@ -336,16 +356,18 @@ class ShowBaseAdapter(
         val showView: CardView = itemView.findViewById(R.id.cardView)
         val showTitle: TextView = itemView.findViewById(R.id.title)
         val showImage: ImageView = itemView.findViewById(R.id.image)
-        val categoryColorView: View = itemView.findViewById(R.id.categoryColor)
+        val categoryColorView: View? = itemView.findViewById(R.id.categoryColor)
         val showDate: TextView = itemView.findViewById(R.id.date)
-        val deleteButton: Button = itemView.findViewById(R.id.deleteButton)
+        val deleteButton: Button? = itemView.findViewById(R.id.deleteButton)
+
+        val detailButton: Button? = itemView.findViewById(R.id.detailButton)
 
         val showDescription: TextView? = if (gridView == MView.LIST) itemView.findViewById(R.id.description) else null
         val showGenre: TextView? = if (gridView == MView.LIST) itemView.findViewById(R.id.genre) else null
         val showRating: RatingBar? = if (gridView == MView.LIST) itemView.findViewById(R.id.rating) else null
 
         val showRatingText: TextView? = if (gridView == MView.RECOMMENDATIONS) itemView.findViewById(R.id.ratingText) else null
-        val showRole: TextView? = if (gridView == MView.ROLES) itemView.findViewById(R.id.role) else null
+        val showRole: TextView? = if (gridView == MView.ROLES || gridView == MView.FILMOGRAPHY) itemView.findViewById(R.id.role) else null
     }
 
     companion object {

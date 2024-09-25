@@ -22,6 +22,7 @@ package com.wirelessalien.android.moviedb.activity
 import android.app.Activity
 import android.app.UiModeManager
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -34,6 +35,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.animation.AnimationUtils
+import android.widget.RelativeLayout
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.palette.graphics.Palette
@@ -54,6 +56,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -485,23 +488,31 @@ class CastActivity : BaseActivity() {
         if (!response.isNullOrEmpty()) {
             // Break the JSON dataset down and add the JSONObjects to the array.
             try {
+                Log.d("bla", response.length.toString())
                 val reader = JSONObject(response)
+                var castMovieArray = JSONArray()
+                var crewMovieArray = JSONArray()
 
                 // Add the cast roles to the movieView
                 if (reader.getJSONArray("cast").length() <= 0) {
                     // This person has no roles as cast, do not show the
                     // cast related views.
-                    val textView = mActivity.findViewById<TextView>(R.id.castMovieTitle)
-                    val view = mActivity.findViewById<View>(R.id.secondDivider)
-                    textView.visibility = View.GONE
-                    view.visibility = View.GONE
+//                    val textView = mActivity.findViewById<TextView>(R.id.castMovieTitle)
+//                    val view = mActivity.findViewById<View>(R.id.secondDivider)
+//                    textView.visibility = View.GONE
+//                    view.visibility = View.GONE
+
+                    val actorCastRoles = mActivity.findViewById<RelativeLayout>(R.id.actorCastRoles)
+                    actorCastRoles.visibility = View.GONE
                     binding.castMovieRecyclerView.visibility = View.GONE
                 } else {
-                    val castMovieArray = reader.getJSONArray("cast")
+                    castMovieArray = reader.getJSONArray("cast")
                     for (i in 0 until castMovieArray.length()) {
                         val actorMovies = castMovieArray.getJSONObject(i)
                         castMovieArrayList.add(actorMovies)
                     }
+
+                    Log.d("bla castmoviearray", castMovieArray.toString().length.toString())
 
                     // Set a new adapter so the RecyclerView
                     // shows the new items.
@@ -515,13 +526,16 @@ class CastActivity : BaseActivity() {
                 if (reader.getJSONArray("crew").length() <= 0) {
                     // This person has no roles as crew, do not show the
                     // crew related views.
-                    val textView = mActivity.findViewById<TextView>(R.id.crewMovieTitle)
-                    val view = mActivity.findViewById<View>(R.id.thirdDivider)
-                    textView.visibility = View.GONE
-                    view.visibility = View.GONE
+//                    val textView = mActivity.findViewById<TextView>(R.id.crewMovieTitle)
+//                    val view = mActivity.findViewById<View>(R.id.thirdDivider)
+//                    textView.visibility = View.GONE
+//                    view.visibility = View.GONE
+
+                    val actorCrewRoles = mActivity.findViewById<RelativeLayout>(R.id.actorCrewRoles)
+                    actorCrewRoles.visibility = View.GONE
                     binding.crewMovieRecyclerView.visibility = View.GONE
                 } else {
-                    val crewMovieArray = reader.getJSONArray("crew")
+                    crewMovieArray = reader.getJSONArray("crew")
                     for (i in 0 until crewMovieArray.length()) {
                         val crewMovies = crewMovieArray.getJSONObject(i)
 
@@ -530,6 +544,8 @@ class CastActivity : BaseActivity() {
                         crewMovieArrayList.add(crewMovies)
                     }
 
+                    Log.d("bla crewmoviearray", crewMovieArray.toString().length.toString())
+
                     // Set a new adapter so the RecyclerView
                     // shows the new items.
                     crewMovieAdapter = ShowBaseAdapter(
@@ -537,6 +553,30 @@ class CastActivity : BaseActivity() {
                     )
                     binding.crewMovieRecyclerView.adapter = crewMovieAdapter
                     mActorMoviesLoaded = true
+                }
+
+                binding.allCastRolesBtn.setOnClickListener {
+                    val allCastRolesIntent = Intent(applicationContext, FilmographyActivity::class.java)
+                    if (castMovieArray.toString().length > 250000) {
+                        allCastRolesIntent.putExtra("callApi", true)
+                        allCastRolesIntent.putExtra("actorId", actorId.toString())
+                        allCastRolesIntent.putExtra("type", "cast")
+                    } else {
+                        allCastRolesIntent.putExtra("movieArray", castMovieArray.toString())
+                    }
+                    startActivity(allCastRolesIntent)
+                }
+
+                binding.allCrewRolesBtn.setOnClickListener {
+                    val allCrewRolesIntent = Intent(applicationContext, FilmographyActivity::class.java)
+                    if (crewMovieArray.toString().length > 250000) {
+                        allCrewRolesIntent.putExtra("callApi", true)
+                        allCrewRolesIntent.putExtra("actorId", actorId.toString())
+                        allCrewRolesIntent.putExtra("type", "crew")
+                    } else {
+                        allCrewRolesIntent.putExtra("movieArray", crewMovieArray.toString())
+                    }
+                    startActivity(allCrewRolesIntent)
                 }
             } catch (je: JSONException) {
                 je.printStackTrace()

@@ -109,64 +109,84 @@
                 android:layout_margin="16dp"
                 android:ellipsize="end"/>
 
+            <RelativeLayout
 
-            <TextView
-                android:id="@+id/castMovieTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/actorBiography"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:textStyle="bold"
-                android:alpha="0.8"
-                android:textAllCaps="true"
-                android:text="@string/cast_movie_title"
-                android:textSize="16sp" />
-
-            <View
-                android:id="@+id/secondDivider"
+                android:id="@+id/actorCastRoles"
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_below="@id/castMovieTitle"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:background="?android:attr/listDivider" />
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/actorBiography">
+
+                <TextView
+                    android:id="@+id/castMovieTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginLeft="16dp"
+                    android:layout_marginRight="16dp"
+                    android:layout_centerVertical="true"
+                    android:textStyle="bold"
+                    android:alpha="0.8"
+                    android:textAllCaps="true"
+                    android:text="@string/cast_movie_title"
+                    android:textSize="16sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/allCastRolesBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_marginEnd="16dp"
+                    app:cornerRadius="5dp"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    app:icon="@drawable/ic_read_more"/>
+
+            </RelativeLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/castMovieRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
                 android:layout_margin="6dp"
-                android:layout_below="@id/secondDivider"
+                android:layout_below="@id/actorCastRoles"
                 android:scrollbars="none" />
 
-            <TextView
-                android:id="@+id/crewMovieTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@id/castMovieRecyclerView"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:textStyle="bold"
-                android:alpha="0.8"
-                android:textAllCaps="true"
-                android:text="@string/crew_movie_title"
-                android:textSize="16sp" />
-
-            <View
-                android:id="@+id/thirdDivider"
+            <RelativeLayout
+                android:id="@+id/actorCrewRoles"
                 android:layout_width="match_parent"
-                android:layout_height="1dp"
-                android:layout_below="@id/crewMovieTitle"
-                android:layout_marginLeft="16dp"
-                android:layout_marginRight="16dp"
-                android:background="?android:attr/listDivider" />
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/castMovieRecyclerView">
+
+                <TextView
+                    android:id="@+id/crewMovieTitle"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="16dp"
+                    android:layout_marginLeft="16dp"
+                    android:layout_marginRight="16dp"
+                    android:layout_centerVertical="true"
+                    android:textStyle="bold"
+                    android:alpha="0.8"
+                    android:textAllCaps="true"
+                    android:text="@string/crew_movie_title"
+                    android:textSize="16sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/allCrewRolesBtn"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:layout_marginEnd="16dp"
+                    app:cornerRadius="5dp"
+                    style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                    app:icon="@drawable/ic_read_more"/>
+
+            </RelativeLayout>
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/crewMovieRecyclerView"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:layout_below="@id/thirdDivider"
+                android:layout_below="@id/actorCrewRoles"
                 android:scrollbars="none"
                 android:layout_margin="6dp"
                 android:layout_marginBottom="10dp"/>
