@@ -1,23 +1,23 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
-package com.wirelessalien.android.moviedb
+package com.wirelessalien.android.moviedb.work
 
 import android.Manifest
 import android.app.PendingIntent
@@ -33,6 +33,7 @@ import androidx.work.OneTimeWorkRequest
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.wirelessalien.android.moviedb.R
 import com.wirelessalien.android.moviedb.activity.MainActivity
 import com.wirelessalien.android.moviedb.helper.EpisodeReminderDatabaseHelper
 import com.wirelessalien.android.moviedb.helper.MovieDatabaseHelper
@@ -40,8 +41,7 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.TimeUnit
 
-class ReleaseReminderService(context: Context, workerParams: WorkerParameters) :
-    Worker(context, workerParams) {
+class ReleaseReminderWorker(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
     override fun doWork(): Result {
         val databaseHelper = MovieDatabaseHelper(applicationContext)
         val db = databaseHelper.readableDatabase
@@ -82,7 +82,7 @@ class ReleaseReminderService(context: Context, workerParams: WorkerParameters) :
             }
         }
         cursorEpisode.close()
-        val workRequest: OneTimeWorkRequest = OneTimeWorkRequest.Builder(ReleaseReminderService::class.java)
+        val workRequest: OneTimeWorkRequest = OneTimeWorkRequest.Builder(ReleaseReminderWorker::class.java)
             .setInitialDelay(24, TimeUnit.HOURS)
             .build()
         WorkManager.getInstance(applicationContext).enqueue(workRequest)
@@ -90,13 +90,12 @@ class ReleaseReminderService(context: Context, workerParams: WorkerParameters) :
     }
 
     private fun createNotification(title: String) {
-        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(
-            applicationContext
-        )
+        val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(applicationContext)
+
         val shouldNotify = sharedPreferences.getBoolean(NOTIFICATION_PREFERENCES, true)
         if (shouldNotify) {
             val intent = Intent(applicationContext, MainActivity::class.java)
-            intent.putExtra("tab_index", 2)
+            intent.putExtra("tab_index", 3)
             val pendingIntent = PendingIntent.getActivity(
                 applicationContext,
                 0,
@@ -122,13 +121,9 @@ class ReleaseReminderService(context: Context, workerParams: WorkerParameters) :
         }
     }
 
-    private fun createEpisodeNotification(
-        tvShowName: String,
-        episodeName: String,
-        episodeNumber: String
-    ) {
+    private fun createEpisodeNotification(tvShowName: String, episodeName: String, episodeNumber: String) {
         val intent = Intent(applicationContext, MainActivity::class.java)
-        intent.putExtra("tab_index", 2)
+        intent.putExtra("tab_index", 3)
         val pendingIntent = PendingIntent.getActivity(
             applicationContext,
             0,
@@ -136,7 +131,7 @@ class ReleaseReminderService(context: Context, workerParams: WorkerParameters) :
             PendingIntent.FLAG_UPDATE_CURRENT
         )
         val builder = NotificationCompat.Builder(applicationContext, "episode_reminders")
-            .setSmallIcon(R.drawable.icon)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(tvShowName)
             .setContentText(
                 applicationContext.getString(

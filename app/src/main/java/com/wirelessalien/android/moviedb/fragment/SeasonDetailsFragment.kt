@@ -1,29 +1,27 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
 import android.content.ContentValues
-import android.graphics.Color
 import android.icu.text.SimpleDateFormat
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -36,7 +34,6 @@ import androidx.fragment.app.Fragment
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.viewpager2.widget.ViewPager2
-import com.google.android.material.appbar.AppBarLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.wirelessalien.android.moviedb.R
 import com.wirelessalien.android.moviedb.adapter.EpisodeAdapter
@@ -61,6 +58,13 @@ class SeasonDetailsFragment : Fragment() {
     private var currentTabNumber = 1
     private lateinit var pageChangeCallback: ViewPager2.OnPageChangeCallback
     private var dbHelper: EpisodeReminderDatabaseHelper? = null
+
+    //oncreate
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setHasOptionsMenu(true)
+    }
+
     override fun onCreateView(
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
@@ -73,10 +77,9 @@ class SeasonDetailsFragment : Fragment() {
         super.onViewCreated(view, savedInstanceState)
         tvShowId = requireArguments().getInt(ARG_TV_SHOW_ID)
         seasonNumber = requireArguments().getInt(ARG_SEASON_NUMBER)
+        toolbar = requireActivity().findViewById(R.id.toolbar)
+        toolbar.title = getString(R.string.seasons)
         rvEpisodes = view.findViewById(R.id.episodeRecyclerView)
-        toolbar = view.findViewById(R.id.toolbar)
-        val appBarLayout = view.findViewById<AppBarLayout>(R.id.appBarLayout)
-        appBarLayout.setBackgroundColor(Color.TRANSPARENT)
         viewPager = requireActivity().findViewById(R.id.view_pager)
         pageChangeCallback = object : ViewPager2.OnPageChangeCallback() {
             override fun onPageSelected(position: Int) {

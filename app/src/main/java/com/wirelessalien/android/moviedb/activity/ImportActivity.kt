@@ -1,44 +1,41 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.activity
 
 import android.content.Context
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
-import android.os.Process
 import android.provider.OpenableColumns
 import android.util.Log
 import android.widget.Button
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.wirelessalien.android.moviedb.R
+import com.wirelessalien.android.moviedb.helper.CrashHelper
 import com.wirelessalien.android.moviedb.helper.MovieDatabaseHelper
+import com.wirelessalien.android.moviedb.helper.PeopleDatabaseHelper
 import com.wirelessalien.android.moviedb.listener.AdapterDataChangedListener
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.PrintWriter
-import java.io.StringWriter
 
 class ImportActivity : AppCompatActivity(), AdapterDataChangedListener {
     private lateinit var context: Context
@@ -72,7 +69,7 @@ class ImportActivity : AppCompatActivity(), AdapterDataChangedListener {
 //                fileNameTextView.setText(selectedFileText);
 //                fileNameTextView.setSelected(true);
             } else {
-//                Toast.makeText(this, getString(R.string.file_picked_fail), Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, getString(R.string.file_picked_fail), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -100,35 +97,10 @@ class ImportActivity : AppCompatActivity(), AdapterDataChangedListener {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_import)
+
+        CrashHelper.setDefaultUncaughtExceptionHandler(applicationContext)
+
         context = this
-        Thread.setDefaultUncaughtExceptionHandler { thread: Thread?, throwable: Throwable ->
-            val crashLog = StringWriter()
-            val printWriter = PrintWriter(crashLog)
-            throwable.printStackTrace(printWriter)
-            val osVersion = Build.VERSION.RELEASE
-            var appVersion = ""
-            try {
-                appVersion = applicationContext.packageManager.getPackageInfo(
-                    applicationContext.packageName,
-                    0
-                ).versionName
-            } catch (e: PackageManager.NameNotFoundException) {
-                e.printStackTrace()
-            }
-            printWriter.write("\nDevice OS Version: $osVersion")
-            printWriter.write("\nApp Version: $appVersion")
-            printWriter.close()
-            try {
-                val fileName = "Crash_Log.txt"
-                val targetFile = File(applicationContext.filesDir, fileName)
-                val fileOutputStream = FileOutputStream(targetFile, true)
-                fileOutputStream.write((crashLog.toString() + "\n").toByteArray())
-                fileOutputStream.close()
-            } catch (e: IOException) {
-                e.printStackTrace()
-            }
-            Process.killProcess(Process.myPid())
-        }
         val pickFileButton = findViewById<Button>(R.id.pick_file_button)
         pickFileButton.setOnClickListener {
             val intent = Intent(Intent.ACTION_OPEN_DOCUMENT)
@@ -136,9 +108,15 @@ class ImportActivity : AppCompatActivity(), AdapterDataChangedListener {
             intent.setType("*/*")
             startActivityForResult(intent, PICK_FILE_REQUEST_CODE)
         }
-        val importButton = findViewById<Button>(R.id.import_button)
-        importButton.setOnClickListener {
+        val importMovieDbButton = findViewById<Button>(R.id.import_movie_db_button)
+        importMovieDbButton.setOnClickListener {
             val databaseHelper = MovieDatabaseHelper(applicationContext)
+            databaseHelper.importDatabase(context, this)
+        }
+
+        val importPeopleDbButton = findViewById<Button>(R.id.import_people_db_button)
+        importPeopleDbButton.setOnClickListener {
+            val databaseHelper = PeopleDatabaseHelper(applicationContext)
             databaseHelper.importDatabase(context, this)
         }
     }

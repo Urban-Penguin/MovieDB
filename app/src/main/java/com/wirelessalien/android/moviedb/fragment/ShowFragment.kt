@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
@@ -23,8 +23,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -75,6 +73,8 @@ class ShowFragment : BaseFragment() {
     private var visibleItemCount = 0
     private var totalItemCount = 0
     private var mShowListLoaded = false
+    private val showIdSet = HashSet<Int>()
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -89,14 +89,29 @@ class ShowFragment : BaseFragment() {
         preferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
         val gridSizePreference = preferences.getInt(GRID_SIZE_PREFERENCE, 3)
         visibleThreshold = gridSizePreference * gridSizePreference
-        createShowList(mListType)
+
+        mShowArrayList = ArrayList()
+        mShowGenreList = HashMap()
+        mShowAdapter = ShowBaseAdapter(
+            mShowArrayList, mShowGenreList,
+            if (preferences.getBoolean(
+                    SHOWS_LIST_PREFERENCE, true))
+                ShowBaseAdapter.MView.GRID
+            else ShowBaseAdapter.MView.LIST, false
+        )
+        (requireActivity() as BaseActivity).checkNetwork()
+
+        // Use persistent filtering if it is enabled.
+        if (preferences.getBoolean(PERSISTENT_FILTERING_PREFERENCE, false)) {
+            filterShows()
+        } else {
+            fetchShowList(arrayOf(mListType, "1"))
+        }
     }
 
     override fun doNetworkWork() {
         if (!mGenreListLoaded) {
-            val handler = Handler(Looper.getMainLooper())
-            val genreListThread = GenreListThread(mListType!!, handler)
-            genreListThread.start()
+            fetchGenreList(mListType!!)
         }
         if (!mShowListLoaded) {
             fetchShowList(arrayOf(mListType, "1"))
@@ -260,31 +275,6 @@ class ShowFragment : BaseFragment() {
     }
 
     /**
-     * Loads a list of shows from the API.
-     *
-     * @param mode determines if series or movies are retrieved.
-     */
-    private fun createShowList(mode: String?) {
-
-        // Create a MovieBaseAdapter and load the first page
-        mShowArrayList = ArrayList()
-        mShowGenreList = HashMap()
-        mShowAdapter = ShowBaseAdapter(
-            mShowArrayList, mShowGenreList,
-            if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true))
-                ShowBaseAdapter.MView.GRID
-            else ShowBaseAdapter.MView.LIST,
-            false
-        )
-        (requireActivity() as BaseActivity).checkNetwork()
-
-        // Use persistent filtering if it is enabled.
-        if (preferences.getBoolean(PERSISTENT_FILTERING_PREFERENCE, false)) {
-            filterShows()
-        }
-    }
-
-    /**
      * Visualises the list of shows on the screen.
      *
      * @param fragmentView the view to attach the ListView to.
@@ -303,11 +293,6 @@ class ShowFragment : BaseFragment() {
                         if (totalItemCount > previousTotal) {
                             loading = false
                             previousTotal = totalItemCount
-                            if (mSearchView) {
-                                currentSearchPage++
-                            } else {
-                                currentPage++
-                            }
                         }
                     }
                     var threshold = visibleThreshold
@@ -322,15 +307,15 @@ class ShowFragment : BaseFragment() {
                     if (!loading && visibleItemCount + pastVisibleItems + threshold >= totalItemCount) {
                         // Load the next page of the content in the background.
                         if (mSearchView) {
-                            searchList(mListType, currentSearchPage, mSearchQuery, false)
+                            searchList(mListType, currentSearchPage, mSearchQuery)
                         } else {
                             // Check if the previous request returned any data
                             if (mShowArrayList.size > 0) {
+                                currentPage++
                                 fetchShowList(arrayOf(mListType, currentPage.toString()))
                             }
                         }
                         loading = true
-                        currentPage++
                     }
                 }
             }
@@ -358,7 +343,7 @@ class ShowFragment : BaseFragment() {
         // Cancel old AsyncTask if it exists.
         currentSearchPage = 1
         mSearchQuery = query
-        searchList(mListType, 1, query, false)
+        searchList(mListType, 1, query)
     }
 
     /**
@@ -371,11 +356,10 @@ class ShowFragment : BaseFragment() {
     }
 
     /**
-     * Uses Thread to retrieve the list with popular shows.
+     * Uses Coroutine to retrieve the list with popular shows.
      */
     private fun fetchShowList(params: Array<String?>) {
         CoroutineScope(Dispatchers.Main).launch {
-            var missingOverview = false
             val listType: String?
             val page: Int
 
@@ -388,9 +372,6 @@ class ShowFragment : BaseFragment() {
 
                 listType = params[0]
                 page = params[1]!!.toInt()
-                if (params.size > 2) {
-                    missingOverview = params[2].equals("true", ignoreCase = true)
-                }
 
                 val response = withContext(Dispatchers.IO) {
                     try {
@@ -398,15 +379,9 @@ class ShowFragment : BaseFragment() {
                             requireContext().applicationContext,
                             "api_read_access_token"
                         )
-                        val url: URL = if (missingOverview) {
-                            URL(
-                                "https://api.themoviedb.org/3/discover/$listType?$filterParameter&page=$page"
-                            )
-                        } else {
-                            URL(
-                                "https://api.themoviedb.org/3/discover/" + listType + "?" + filterParameter + "&page=" + page + BaseActivity.getLanguageParameter(context)
-                            )
-                        }
+                        val url = URL(
+                            "https://api.themoviedb.org/3/discover/" + listType + "?" + filterParameter + "&page=" + page + BaseActivity.getLanguageParameter(context)
+                        )
                         val client = OkHttpClient()
                         val request = Request.Builder()
                             .url(url)
@@ -423,17 +398,21 @@ class ShowFragment : BaseFragment() {
                     }
                 }
 
-                handleResponse(response, missingOverview, listType, page)
+                if (isAdded) {
+                    handleResponse(response, page)
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             } finally {
-                val progressBar = Optional.ofNullable(requireActivity().findViewById<ProgressBar>(R.id.progressBar))
-                progressBar.ifPresent { bar: ProgressBar -> bar.visibility = View.GONE }
+                if (isAdded) {
+                    val progressBar = Optional.ofNullable(requireActivity().findViewById<ProgressBar>(R.id.progressBar))
+                    progressBar.ifPresent { bar: ProgressBar -> bar.visibility = View.GONE }
+                }
             }
         }
     }
 
-    private fun handleResponse(response: String?, missingOverview: Boolean, listType: String?, page: Int) {
+    private fun handleResponse(response: String?, page: Int) {
         if (isAdded && !response.isNullOrEmpty()) {
             // Keep the user at the same position in the list.
             val position: Int = try {
@@ -445,6 +424,7 @@ class ShowFragment : BaseFragment() {
             // If the filter has changed, remove the old items
             if (filterChanged) {
                 mShowArrayList.clear()
+                showIdSet.clear() // Clear the set of IDs
 
                 // Set the previous total back to zero.
                 previousTotal = 0
@@ -454,37 +434,20 @@ class ShowFragment : BaseFragment() {
             }
 
             // Convert the JSON data from the webpage into JSONObjects
-            val tempMovieArrayList = ArrayList<JSONObject>()
             try {
                 val reader = JSONObject(response)
                 val arrayData = reader.getJSONArray("results")
                 for (i in 0 until arrayData.length()) {
                     val websiteData = arrayData.getJSONObject(i)
-                    if (missingOverview) {
-                        tempMovieArrayList.add(websiteData)
-                    } else {
-                        mShowArrayList.add(websiteData)
-                    }
-                }
+                    val showId = websiteData.getInt("id")
 
-                // Some translations might be lacking and need to be filled in.
-                // Therefore, load the same list but in English.
-                // After that, iterate through the translated list
-                // and fill in any missing parts.
-                if (Locale.getDefault().language != "en" && !missingOverview) {
-                    fetchShowList(arrayOf(listType, page.toString(), "true"))
-                }
-
-                // If the overview is missing, add the overview from the English version.
-                if (missingOverview) {
-                    for (i in mShowArrayList.size - tempMovieArrayList.size until mShowArrayList.size) {
-                        val movieObject = mShowArrayList[i]
-                        if (movieObject.getString("overview") == "") {
-                            movieObject.put(
-                                "overview",
-                                tempMovieArrayList[i - (mShowArrayList.size - tempMovieArrayList.size)].getString("overview")
-                            )
+                    // Check if the ID is already in the set
+                    if (!showIdSet.contains(showId)) {
+                        if (websiteData.getString("overview").isEmpty()) {
+                            websiteData.put("overview", "Overview may not be available in the specified language.")
                         }
+                        mShowArrayList.add(websiteData)
+                        showIdSet.add(showId) // Add the ID to the set
                     }
                 }
 
@@ -503,7 +466,7 @@ class ShowFragment : BaseFragment() {
     }
 
     /**
-     * Uses Thread to retrieve the list with shows that fulfill the search query
+     * Uses Coroutine to retrieve the list with shows that fulfill the search query
      * (and are of the requested type which means that nothing will turn up if you
      * search for a series in the movies tab (and there are no movies with the same name).
      */
@@ -511,7 +474,6 @@ class ShowFragment : BaseFragment() {
         listType: String?,
         page: Int,
         query: String?,
-        missingOverview: Boolean
     ) {
         if (query.isNullOrEmpty()) {
             // If the query is empty, show the original show list
@@ -527,19 +489,11 @@ class ShowFragment : BaseFragment() {
                 val response = withContext(Dispatchers.IO) {
                     var result: String? = null
                     try {
-                        val url: URL = if (missingOverview) {
-                            URL(
-                                "https://api.themoviedb.org/3/search/" +
-                                        listType + "?query=" + query + "&page=" + page +
-                                        "&api_key=" + API_KEY
-                            )
-                        } else {
-                            URL(
-                                "https://api.themoviedb.org/3/search/" +
-                                        listType + "?&query=" + query + "&page=" + page +
-                                        "&api_key=" + API_KEY + BaseActivity.getLanguageParameter(context)
-                            )
-                        }
+                        val url = URL(
+                            "https://api.themoviedb.org/3/search/" +
+                                    listType + "?query=" + query + "&page=" + page +
+                                    "&api_key=" + API_KEY + BaseActivity.getLanguageParameter(context)
+                        )
                         val urlConnection = url.openConnection()
                         val bufferedReader = BufferedReader(InputStreamReader(urlConnection.getInputStream()))
                         val stringBuilder = StringBuilder()
@@ -555,18 +509,14 @@ class ShowFragment : BaseFragment() {
                     result
                 }
 
-                handleResponse(response, listType, page, query, missingOverview)
+                handleResponse(response)
                 progressBar.ifPresent { bar: ProgressBar -> bar.visibility = View.GONE }
             }
         }
     }
 
     private fun handleResponse(
-        response: String?,
-        listType: String?,
-        page: Int,
-        query: String?,
-        missingOverview: Boolean
+        response: String?
     ) {
         requireActivity().runOnUiThread {
             val position: Int = try {
@@ -580,34 +530,15 @@ class ShowFragment : BaseFragment() {
             }
 
             if (!response.isNullOrEmpty()) {
-                val tempSearchMovieArrayList = ArrayList<JSONObject>()
                 try {
                     val reader = JSONObject(response)
                     val arrayData = reader.getJSONArray("results")
                     for (i in 0 until arrayData.length()) {
                         val websiteData = arrayData.getJSONObject(i)
-                        if (missingOverview) {
-                            tempSearchMovieArrayList.add(websiteData)
-                        } else {
-                            mSearchShowArrayList.add(websiteData)
+                        if (websiteData.getString("overview").isEmpty()) {
+                            websiteData.put("overview", "Overview may not available in the specified language.")
                         }
-                    }
-
-                    if (Locale.getDefault().language != "en" && !missingOverview) {
-                        searchList(listType, page, query, true)
-                    }
-                    if (missingOverview) {
-                        for (i in mSearchShowArrayList.indices) {
-                            val movieObject = mSearchShowArrayList[i]
-                            if (movieObject.getString("overview") == "") {
-                                if (i < tempSearchMovieArrayList.size) {
-                                    movieObject.put(
-                                        "overview",
-                                        tempSearchMovieArrayList[i].getString("overview")
-                                    )
-                                }
-                            }
-                        }
+                        mSearchShowArrayList.add(websiteData)
                     }
 
                     mSearchView = true
@@ -621,7 +552,7 @@ class ShowFragment : BaseFragment() {
     }
 
     companion object {
-        private const val ARG_LIST_TYPE = "arg_list_type"
+        const val ARG_LIST_TYPE = "arg_list_type"
         fun newInstance(listType: String?): ShowFragment {
             val fragment = ShowFragment()
             val args = Bundle()

@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.activity
 
@@ -37,12 +37,11 @@ import android.graphics.drawable.GradientDrawable
 import android.icu.text.DateFormat
 import android.net.Uri
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.text.InputType
 import android.text.SpannableString
 import android.util.Log
 import android.util.TypedValue
+import android.view.LayoutInflater
 import android.view.View
 import android.view.View.OnFocusChangeListener
 import android.view.animation.AccelerateInterpolator
@@ -53,6 +52,7 @@ import android.widget.AdapterView
 import android.widget.ArrayAdapter
 import android.widget.Button
 import android.widget.LinearLayout
+import android.widget.NumberPicker
 import android.widget.RatingBar
 import android.widget.TextView
 import android.widget.Toast
@@ -72,6 +72,7 @@ import androidx.viewpager2.widget.ViewPager2
 import com.google.android.flexbox.FlexboxLayout
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.card.MaterialCardView
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.datepicker.MaterialDatePicker
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.squareup.picasso.Picasso
@@ -88,11 +89,11 @@ import com.wirelessalien.android.moviedb.fragment.ListBottomSheetDialogFragment
 import com.wirelessalien.android.moviedb.fragment.ListFragment.Companion.databaseUpdate
 import com.wirelessalien.android.moviedb.helper.ConfigHelper.getConfigValue
 import com.wirelessalien.android.moviedb.helper.MovieDatabaseHelper
-import com.wirelessalien.android.moviedb.tmdb.account.AddRatingThreadTMDb
-import com.wirelessalien.android.moviedb.tmdb.account.AddToFavouritesThreadTMDb
-import com.wirelessalien.android.moviedb.tmdb.account.AddToWatchlistThreadTMDb
-import com.wirelessalien.android.moviedb.tmdb.account.DeleteRatingThreadTMDb
-import com.wirelessalien.android.moviedb.tmdb.account.GetAccountStateThreadTMDb
+import com.wirelessalien.android.moviedb.tmdb.account.AddRating
+import com.wirelessalien.android.moviedb.tmdb.account.AddToFavourites
+import com.wirelessalien.android.moviedb.tmdb.account.AddToWatchlist
+import com.wirelessalien.android.moviedb.tmdb.account.DeleteRating
+import com.wirelessalien.android.moviedb.tmdb.account.GetAccountState
 import com.wirelessalien.android.moviedb.view.NotifyingScrollView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -112,7 +113,6 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.CompletableFuture
 import kotlin.math.abs
 
 /**
@@ -316,12 +316,14 @@ class DetailActivity : BaseActivity() {
                     " WHERE " + MovieDatabaseHelper.COLUMN_MOVIES_ID +
                     "=" + movieId + " LIMIT 1", null
         )
-
-        // If the show is in the database, display a filled in star as icon.
-        if (cursor.count > 0) {
-            // A record has been found
-            binding.fabSave.setImageResource(R.drawable.ic_star)
-            added = true
+        try {
+            if (cursor.count > 0) {
+                // A record has been found
+                binding.fabSave.setImageResource(R.drawable.ic_star)
+                added = true
+            }
+        } finally {
+            cursor.close()
         }
         val progressBar = binding.progressBar
         progressBar.visibility = View.VISIBLE
@@ -329,7 +331,7 @@ class DetailActivity : BaseActivity() {
         lifecycleScope.launch {
             if (accountId != null && sessionId != null) {
                 val typeCheck = if (isMovie) "movie" else "tv"
-                val getAccountState = GetAccountStateThreadTMDb(movieId, typeCheck, mActivity)
+                val getAccountState = GetAccountState(movieId, typeCheck, mActivity)
 
                 withContext(Dispatchers.IO) {
                     getAccountState.fetchAccountState()
@@ -400,10 +402,6 @@ class DetailActivity : BaseActivity() {
         } else {
             Color.WHITE
         }
-        val foregroundGradientDrawable = GradientDrawable(
-            GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(ContextCompat.getColor(context, R.color.md_theme_surface), Color.TRANSPARENT)
-        )
-        binding.movieImage.foreground = foregroundGradientDrawable
         if (preferences.getBoolean(DYNAMIC_COLOR_DETAILS_ACTIVITY, false)) {
             if (jMovieObject.has("backdrop_path") && binding.movieImage.drawable == null) {
                 val loadHDImage = preferences.getBoolean(HD_IMAGE_SIZE, false)
@@ -442,6 +440,12 @@ class DetailActivity : BaseActivity() {
                         }
                         binding.root.background = gradientDrawable
                         binding.appBarLayout.setBackgroundColor(Color.TRANSPARENT)
+
+                        val foregroundGradientDrawable = GradientDrawable(
+                            GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(mutedColor, Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT)
+                        )
+                        binding.movieImage.foreground = foregroundGradientDrawable
+
                         val colorStateList = ColorStateList.valueOf(mutedColor)
                         if (mutedColor != Color.TRANSPARENT) {
                             binding.fab.backgroundTintList = colorStateList
@@ -487,6 +491,11 @@ class DetailActivity : BaseActivity() {
                 Picasso.get().load(imageUrl).into(target)
             }
         } else {
+            val foregroundGradientDrawable = GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP, intArrayOf(ContextCompat.getColor(context, R.color.md_theme_surface), Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT, Color.TRANSPARENT)
+            )
+            binding.movieImage.foreground = foregroundGradientDrawable
+
             if (jMovieObject.has("backdrop_path") && binding.movieImage.drawable == null) {
                 val loadHDImage = preferences.getBoolean(HD_IMAGE_SIZE, false)
                 val imageSize = if (loadHDImage) "w1280" else "w780"
@@ -505,11 +514,12 @@ class DetailActivity : BaseActivity() {
                 binding.movieImage.startAnimation(animation)
             }
         }
+
         binding.watchListButton.setOnClickListener {
             lifecycleScope.launch {
                 if (accountId != null) {
                     val typeCheck = if (isMovie) "movie" else "tv"
-                    val getAccountState = GetAccountStateThreadTMDb(movieId, typeCheck, mActivity)
+                    val getAccountState = GetAccountState(movieId, typeCheck, mActivity)
 
                     withContext(Dispatchers.IO) {
                         getAccountState.fetchAccountState()
@@ -524,7 +534,7 @@ class DetailActivity : BaseActivity() {
                                 R.drawable.ic_bookmark_border
                             )
                             withContext(Dispatchers.IO) {
-                                AddToWatchlistThreadTMDb(movieId, typeCheck, false, mActivity).addToWatchlist()
+                                AddToWatchlist(movieId, typeCheck, false, mActivity).addToWatchlist()
                             }
                         } else {
                             binding.watchListButton.icon = ContextCompat.getDrawable(
@@ -532,16 +542,14 @@ class DetailActivity : BaseActivity() {
                                 R.drawable.ic_bookmark
                             )
                             withContext(Dispatchers.IO) {
-                                AddToWatchlistThreadTMDb(movieId, typeCheck, true, mActivity).addToWatchlist()
+                                AddToWatchlist(movieId, typeCheck, true, mActivity).addToWatchlist()
                             }
                         }
                     }
                 } else {
                     Toast.makeText(
                         applicationContext,
-                        "Failed to retrieve account id",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                        getString(R.string.failed_to_retrieve_account_id), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -558,7 +566,7 @@ class DetailActivity : BaseActivity() {
             lifecycleScope.launch {
                 if (accountId != null) {
                     val typeCheck = if (isMovie) "movie" else "tv"
-                    val getAccountState = GetAccountStateThreadTMDb(movieId, typeCheck, mActivity)
+                    val getAccountState = GetAccountState(movieId, typeCheck, mActivity)
 
                     withContext(Dispatchers.IO) {
                         getAccountState.fetchAccountState()
@@ -573,7 +581,7 @@ class DetailActivity : BaseActivity() {
                                 R.drawable.ic_favorite_border
                             )
                             withContext(Dispatchers.IO) {
-                                AddToFavouritesThreadTMDb(movieId, typeCheck, false, mActivity).addToFavourites()
+                                AddToFavourites(movieId, typeCheck, false, mActivity).addToFavourites()
                             }
                         } else {
                             binding.favouriteButton.icon = ContextCompat.getDrawable(
@@ -581,16 +589,13 @@ class DetailActivity : BaseActivity() {
                                 R.drawable.ic_favorite
                             )
                             withContext(Dispatchers.IO) {
-                                AddToFavouritesThreadTMDb(movieId, typeCheck, true, mActivity).addToFavourites()
+                                AddToFavourites(movieId, typeCheck, true, mActivity).addToFavourites()
                             }
                         }
                     }
                 } else {
-                    Toast.makeText(
-                        applicationContext,
-                        "Failed to retrieve account id. Try login again.",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                    Toast.makeText(applicationContext,
+                        getString(R.string.account_id_fail_try_login_again), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -608,7 +613,7 @@ class DetailActivity : BaseActivity() {
             movieTitle.text = showTitle
             lifecycleScope.launch {
                 val typeCheck = if (isMovie) "movie" else "tv"
-                val getAccountState = GetAccountStateThreadTMDb(movieId, typeCheck, mActivity)
+                val getAccountState = GetAccountState(movieId, typeCheck, mActivity)
 
                 withContext(Dispatchers.IO) {
                     getAccountState.fetchAccountState()
@@ -622,7 +627,7 @@ class DetailActivity : BaseActivity() {
                         val type = if (isMovie) "movie" else "tv"
                         val rating = ratingBar.rating.toDouble()
                         withContext(Dispatchers.IO) {
-                            AddRatingThreadTMDb(movieId, rating, type, mActivity).addRating()
+                            AddRating(movieId, rating, type, mActivity).addRating()
                         }
                         dialog.dismiss()
                     }
@@ -632,7 +637,7 @@ class DetailActivity : BaseActivity() {
                     lifecycleScope.launch {
                         val type = if (isMovie) "movie" else "tv"
                         withContext(Dispatchers.IO) {
-                            DeleteRatingThreadTMDb(movieId, type, mActivity).deleteRating()
+                            DeleteRating(movieId, type, mActivity).deleteRating()
                         }
                         dialog.dismiss()
                     }
@@ -724,7 +729,7 @@ class DetailActivity : BaseActivity() {
                     // Ask in which category the show should be placed.
                     val categoriesDialog = MaterialAlertDialogBuilder(this)
                     categoriesDialog.setTitle(getString(R.string.category_picker))
-                    categoriesDialog.setItems(R.array.categories) { dialog: DialogInterface?, which: Int ->
+                    categoriesDialog.setItems(R.array.categories) { _: DialogInterface?, which: Int ->
                         showValues.put(
                             MovieDatabaseHelper.COLUMN_CATEGORIES,
                             getCategoryNumber(which)
@@ -784,7 +789,9 @@ class DetailActivity : BaseActivity() {
     override fun doNetworkWork() {
         // Get the cast and crew for the CastListAdapter and get the movies for the MovieListAdapter.
         if (!mCastAndCrewLoaded) {
-            CastListThread().start()
+            lifecycleScope.launch {
+                fetchCastList()
+            }
         }
         if (!mSimilarMoviesLoaded) {
             startSimilarMovieList()
@@ -792,17 +799,12 @@ class DetailActivity : BaseActivity() {
 
         // Load movie details.
         if (!mMovieDetailsLoaded) {
-            CompletableFuture.runAsync {
-                val movieDetailsThread = MovieDetailsThread()
-                movieDetailsThread.start()
-            }.exceptionally { ex: Throwable? ->
-                Log.e("DetailActivity", "Error in CompletableFuture", ex)
-                null
-            }
+            fetchMovieDetailsCoroutine()
         }
         if (!mVideosLoaded) {
-            val getVideosThread = GetVideosThread()
-            getVideosThread.start()
+            lifecycleScope.launch {
+                fetchVideos()
+            }
         }
     }
 
@@ -976,8 +978,21 @@ class DetailActivity : BaseActivity() {
                     localizedTen
                 )
 
+                var dbDateFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
                 // If the database has a start date, use it, otherwise print unknown.
-                val dbDateFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+                val dateString = cursor.getString(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_START_DATE))
+                if (dateString != null) {
+                    dbDateFormat = if (dateString.indexOf('-') == 4) {
+                        SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+                    } else {
+                        SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+                    }
+                    // Use dbDateFormat as needed
+                } else {
+                    // Handle the null case, e.g., set a default value or log a message
+                    Log.e("DetailActivity", "dateString is null")
+                }
 
                 // Start Date
                 if (!cursor.isNull(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_START_DATE))
@@ -986,12 +1001,25 @@ class DetailActivity : BaseActivity() {
                     val startDateString =
                         cursor.getString(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_START_DATE))
                     try {
-                        val startDate = dbDateFormat.parse(startDateString)
-                        // Use DateFormat.getDateInstance(DateFormat.DEFAULT) for default system date format
-                        val formattedStartDate =
-                            DateFormat.getDateInstance(DateFormat.DEFAULT).format(startDate)
+                        val formattedStartDate = when {
+                            startDateString.startsWith("00-00-") -> {
+                                val year = startDateString.substring(6)
+                                year
+                            }
+                            startDateString.startsWith("00-") -> {
+                                val monthYear = startDateString.substring(3)
+                                SimpleDateFormat("MM-yyyy", Locale.getDefault()).parse(monthYear)?.let {
+                                    SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(it)
+                                }
+                            }
+                            else -> {
+                                dbDateFormat.parse(startDateString)?.let {
+                                    DateFormat.getDateInstance(DateFormat.DEFAULT).format(it)
+                                }
+                            }
+                        }
                         binding.movieStartDate.text =
-                            getString(R.string.start_date) + formattedStartDate
+                            getString(R.string.start_date) + (formattedStartDate ?: getString(R.string.start_date_unknown))
                     } catch (e: ParseException) {
                         e.printStackTrace()
                         binding.movieStartDate.text = getString(R.string.start_date_unknown)
@@ -1007,12 +1035,25 @@ class DetailActivity : BaseActivity() {
                     val finishDateString =
                         cursor.getString(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_FINISH_DATE))
                     try {
-                        val finishDate = dbDateFormat.parse(finishDateString)
-                        // Use DateFormat.getDateInstance(DateFormat.DEFAULT) for default system date format
-                        val formattedFinishDate =
-                            DateFormat.getDateInstance(DateFormat.DEFAULT).format(finishDate)
+                        val formattedFinishDate = when {
+                            finishDateString.startsWith("00-00-") -> {
+                                val year = finishDateString.substring(6)
+                                year
+                            }
+                            finishDateString.startsWith("00-") -> {
+                                val monthYear = finishDateString.substring(3)
+                                SimpleDateFormat("MM-yyyy", Locale.getDefault()).parse(monthYear)?.let {
+                                    SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(it)
+                                }
+                            }
+                            else -> {
+                                dbDateFormat.parse(finishDateString)?.let {
+                                    DateFormat.getDateInstance(DateFormat.DEFAULT).format(it)
+                                }
+                            }
+                        }
                         binding.movieFinishDate.text =
-                            getString(R.string.finish_date) + formattedFinishDate
+                            getString(R.string.finish_date) + (formattedFinishDate ?: getString(R.string.finish_date_unknown))
                     } catch (e: ParseException) {
                         e.printStackTrace()
                         binding.movieFinishDate.text = getString(R.string.finish_date_unknown)
@@ -1082,7 +1123,7 @@ class DetailActivity : BaseActivity() {
                     // set the episodeCount equal to it. If the show is marked
                     // as "watched" then that implies that all episodes have
                     // been seen and therefore episodeCount is equal to totalEpisodes.
-                    var episodeCount: String = if (!cursor.isNull(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_EPISODES))
+                    val episodeCount: String = if (!cursor.isNull(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_EPISODES))
                             && cursor.getString(
                                 cursor.getColumnIndexOrThrow(
                                     MovieDatabaseHelper.COLUMN_PERSONAL_EPISODES
@@ -1177,6 +1218,7 @@ class DetailActivity : BaseActivity() {
                     genres = genreNames.substring(0)
                 }
             }
+
             if (!isMovie) {
                 val lastEpisode = movieObject.optJSONObject("last_episode_to_air")
                 val nextEpisode = movieObject.optJSONObject("next_episode_to_air")
@@ -1312,10 +1354,8 @@ class DetailActivity : BaseActivity() {
         }
     }
 
-    inner class GetVideosThread : Thread() {
-        private val handler: Handler = Handler(Looper.getMainLooper())
-
-        override fun run() {
+    private suspend fun fetchVideos() {
+        withContext(Dispatchers.IO) {
             try {
                 val type = if (isMovie) SectionsPagerAdapter.MOVIE else SectionsPagerAdapter.TV
                 val url = URL("https://api.themoviedb.org/3/$type/$movieId/videos?api_key=$API_KEY")
@@ -1330,60 +1370,58 @@ class DetailActivity : BaseActivity() {
                 }
                 reader.close()
                 val response = stringBuilder.toString()
-                handler.post { onPostExecute(response) }
+                withContext(Dispatchers.Main) {
+                    onVideoPostExecute(response)
+                }
             } catch (e: IOException) {
                 e.printStackTrace()
             }
         }
+    }
 
-        private fun onPostExecute(response: String) {
-            try {
-                val jsonObject = JSONObject(response)
-                val results = jsonObject.getJSONArray("results")
-                for (i in 0 until results.length()) {
-                    val video = results.getJSONObject(i)
-                    val type = video.getString("type")
-                    val site = video.getString("site")
-                    if (type == "Trailer") {
-                        val key = video.getString("key")
-                        var url: String = if (site == "YouTube") {
-                            "https://www.youtube.com/watch?v=$key"
-                        } else {
-                            "https://www." + site.lowercase(Locale.getDefault()) + ".com/watch?v=" + key
-                        }
-                        binding.trailer.setOnClickListener {
-                            if (url.isEmpty()) {
-                                Toast.makeText(context, "No trailer available", Toast.LENGTH_SHORT)
-                                    .show()
-                            } else if (url.contains("youtube")) {
-                                // Extract the video key from the URL if it's a YouTube video
-                                val videoKey = url.substring(url.lastIndexOf("=") + 1)
-                                val intent = Intent(
-                                    Intent.ACTION_VIEW, Uri.parse(
-                                        "vnd.youtube:$videoKey"
-                                    )
-                                )
-                                if (intent.resolveActivity(context.packageManager) != null) {
-                                    context.startActivity(intent)
-                                } else {
-                                    // YouTube app is not installed, open the video in a custom Chrome tab
-                                    val builder = CustomTabsIntent.Builder()
-                                    val customTabsIntent = builder.build()
-                                    customTabsIntent.launchUrl(context, Uri.parse(url))
-                                }
+    private fun onVideoPostExecute(response: String) {
+        try {
+            val jsonObject = JSONObject(response)
+            val results = jsonObject.getJSONArray("results")
+            for (i in 0 until results.length()) {
+                val video = results.getJSONObject(i)
+                val type = video.getString("type")
+                val site = video.getString("site")
+                if (type == "Trailer") {
+                    val key = video.getString("key")
+                    val url: String = if (site == "YouTube") {
+                        "https://www.youtube.com/watch?v=$key"
+                    } else {
+                        "https://www." + site.lowercase(Locale.getDefault()) + ".com/watch?v=" + key
+                    }
+                    binding.trailer.setOnClickListener {
+                        if (url.isEmpty()) {
+                            Toast.makeText(context,
+                                getString(R.string.no_trailer_available), Toast.LENGTH_SHORT).show()
+                        } else if (url.contains("youtube")) {
+                            // Extract the video key from the URL if it's a YouTube video
+                            val videoKey = url.substring(url.lastIndexOf("=") + 1)
+                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("vnd.youtube:$videoKey"))
+                            if (intent.resolveActivity(context.packageManager) != null) {
+                                context.startActivity(intent)
                             } else {
-                                // If it's not a YouTube video, open it in a custom Chrome tab
+                                // YouTube app is not installed, open the video in a custom Chrome tab
                                 val builder = CustomTabsIntent.Builder()
                                 val customTabsIntent = builder.build()
                                 customTabsIntent.launchUrl(context, Uri.parse(url))
                             }
+                        } else {
+                            // If it's not a YouTube video, open it in a custom Chrome tab
+                            val builder = CustomTabsIntent.Builder()
+                            val customTabsIntent = builder.build()
+                            customTabsIntent.launchUrl(context, Uri.parse(url))
                         }
                     }
                 }
-                mVideosLoaded = true
-            } catch (e: JSONException) {
-                e.printStackTrace()
             }
+            mVideosLoaded = true
+        } catch (e: JSONException) {
+            e.printStackTrace()
         }
     }
 
@@ -1427,7 +1465,7 @@ class DetailActivity : BaseActivity() {
             // Show dropdown on click
             categoriesView.setOnClickListener { categoriesView.showDropDown() }
             categoriesView.onItemClickListener =
-                AdapterView.OnItemClickListener { parent: AdapterView<*>?, view1: View?, position: Int, id: Long ->
+                AdapterView.OnItemClickListener { _: AdapterView<*>?, _: View?, position: Int, _: Long ->
                     // Save the category to the database
                     val showValues = ContentValues()
                     database = databaseHelper.writableDatabase
@@ -1463,13 +1501,9 @@ class DetailActivity : BaseActivity() {
                         }
 
                         // Fetch seasons data and add to database if category is changed to "watched"
-                        val movieDetailsThread = MovieDetailsThread()
-                        movieDetailsThread.start()
-                        try {
-                            movieDetailsThread.join()
+                        lifecycleScope.launch {
+                            fetchMovieDetailsCoroutine()
                             addSeasonsAndEpisodesToDatabase()
-                        } catch (e: InterruptedException) {
-                            e.printStackTrace()
                         }
                     }
                     showValues.put(
@@ -1485,7 +1519,7 @@ class DetailActivity : BaseActivity() {
 
             // Listen to changes to the EditText.
             timesWatchedView.onFocusChangeListener =
-                OnFocusChangeListener { v: View?, hasFocus: Boolean ->
+                OnFocusChangeListener { _: View?, hasFocus: Boolean ->
                     if (!hasFocus && timesWatchedView.text.toString().isNotEmpty()) {
                         // Save the number to the database
                         val showValues = ContentValues()
@@ -1507,7 +1541,7 @@ class DetailActivity : BaseActivity() {
 
             // Listen to changes to the ShowRating EditText.
             showRating.onFocusChangeListener =
-                OnFocusChangeListener { v: View?, hasFocus: Boolean ->
+                OnFocusChangeListener { _: View?, hasFocus: Boolean ->
                     if (!hasFocus && showRating.text.toString().isNotEmpty()) {
                         // Save the number to the database
                         val showValues = ContentValues()
@@ -1537,7 +1571,7 @@ class DetailActivity : BaseActivity() {
 
             // Listen to changes to the MovieReview EditText.
             movieReview.onFocusChangeListener =
-                OnFocusChangeListener { v: View?, hasFocus: Boolean ->
+                OnFocusChangeListener { _: View?, hasFocus: Boolean ->
                     if (!hasFocus) {
                         // Save the review to the database
                         val showValues = ContentValues()
@@ -1615,8 +1649,7 @@ class DetailActivity : BaseActivity() {
                 val startDateString =
                     cursor.getString(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_START_DATE))
                 try {
-                    startDate =
-                        SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).parse(startDateString)
+                    startDate = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).parse(startDateString)
                     // Use DateFormat.getDateInstance() for default system date format
                     binding.startDateButton.text = DateFormat.getDateInstance().format(startDate)
                 } catch (e: ParseException) {
@@ -1631,8 +1664,7 @@ class DetailActivity : BaseActivity() {
                 val finishDateString =
                     cursor.getString(cursor.getColumnIndexOrThrow(MovieDatabaseHelper.COLUMN_PERSONAL_FINISH_DATE))
                 try {
-                    finishDate =
-                        SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).parse(finishDateString)
+                    finishDate = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault()).parse(finishDateString)
                     // Use DateFormat.getDateInstance() for default system date format
                     binding.endDateButton.text = DateFormat.getDateInstance().format(finishDate)
                 } catch (e: ParseException) {
@@ -1709,9 +1741,96 @@ class DetailActivity : BaseActivity() {
         databaseUpdate()
     }
 
+    fun showDateSelectionDialog(view: View) {
+        val context = view.context
+        val dialog = BottomSheetDialog(context)
+        val inflater = LayoutInflater.from(context)
+        val dialogView = inflater.inflate(R.layout.dialog_date_format, null)
+        dialog.setContentView(dialogView)
+        dialog.show()
+
+        val fullDateBtn = dialogView.findViewById<Button>(R.id.btnFullDate)
+        val yearBtn = dialogView.findViewById<Button>(R.id.btnYear)
+
+        fullDateBtn.setOnClickListener {
+            selectDate(view)
+            dialog.dismiss()
+        }
+
+        yearBtn.setOnClickListener {
+            showYearMonthPickerDialog(context) { selectedYear, selectedMonth ->
+                // Save the selected year and month to the database
+                val movieValues = ContentValues()
+                database = databaseHelper.writableDatabase
+                databaseHelper.onCreate(database)
+                val month = selectedMonth?.toString()?.padStart(2, '0') ?: "00"
+                if (view.tag == "start_date") {
+                    movieValues.put(MovieDatabaseHelper.COLUMN_PERSONAL_START_DATE, "00-$month-$selectedYear")
+                    val button = findViewById<Button>(R.id.startDateButton)
+                    button.text = "00-$month-$selectedYear"
+                } else {
+                    movieValues.put(MovieDatabaseHelper.COLUMN_PERSONAL_FINISH_DATE, "00-$month-$selectedYear")
+                    val button = findViewById<Button>(R.id.endDateButton)
+                    button.text = "00-$month-$selectedYear"
+                }
+                database.update(
+                    MovieDatabaseHelper.TABLE_MOVIES,
+                    movieValues,
+                    "${MovieDatabaseHelper.COLUMN_MOVIES_ID}=$movieId",
+                    null
+                )
+            }
+            dialog.dismiss()
+        }
+    }
+
+    private fun showYearMonthPickerDialog(
+        context: Context,
+        onYearMonthSelected: (Int, Int?) -> Unit
+    ) {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_year_month_picker, null)
+        val yearPicker = dialogView.findViewById<NumberPicker>(R.id.yearPicker)
+        val monthPicker = dialogView.findViewById<NumberPicker>(R.id.monthPicker)
+        val monthTitle = dialogView.findViewById<TextView>(R.id.monthTitle)
+        val monthLayout = dialogView.findViewById<LinearLayout>(R.id.monthLayout)
+        val disableMonthPicker = dialogView.findViewById<MaterialCheckBox>(R.id.disableMonthPicker)
+
+        val currentYear = android.icu.util.Calendar.getInstance().get(android.icu.util.Calendar.YEAR)
+        yearPicker.minValue = 1900
+        yearPicker.maxValue = currentYear
+        yearPicker.value = currentYear
+
+        val months = arrayOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        monthPicker.minValue = 0
+        monthPicker.maxValue = months.size - 1
+        monthPicker.displayedValues = months
+        monthPicker.value = android.icu.util.Calendar.getInstance().get(android.icu.util.Calendar.MONTH)
+
+        disableMonthPicker.setOnCheckedChangeListener { _, isChecked ->
+            monthPicker.isEnabled = !isChecked
+            monthPicker.visibility = if (isChecked) View.GONE else View.VISIBLE
+            monthTitle.visibility = if (isChecked) View.GONE else View.VISIBLE
+            monthLayout.visibility = if (isChecked) View.GONE else View.VISIBLE
+        }
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(getString(R.string.select_year_and_month))
+            .setView(dialogView)
+            .setPositiveButton(getString(R.string.ok)) { _, _ ->
+                val selectedYear = yearPicker.value
+                val selectedMonth = if (disableMonthPicker.isChecked) null else monthPicker.value + 1
+                onYearMonthSelected(selectedYear, selectedMonth)
+            }
+            .setNegativeButton(getString(R.string.cancel), null)
+            .show()
+    }
+
     fun selectDate(view: View) {
         val builder = MaterialDatePicker.Builder.datePicker()
-        builder.setTitleText("Select a date")
+        builder.setTitleText(getString(R.string.select_a_date))
         val datePicker = builder.build()
         datePicker.show(supportFragmentManager, datePicker.toString())
         datePicker.addOnPositiveButtonClickListener { selection: Long? ->
@@ -1787,9 +1906,8 @@ class DetailActivity : BaseActivity() {
     }
 
     // Load the list of actors.
-    private inner class CastListThread : Thread() {
-        private val handler = Handler(Looper.getMainLooper())
-        override fun run() {
+    private suspend fun fetchCastList() {
+        withContext(Dispatchers.IO) {
             var line: String?
             val stringBuilder = StringBuilder()
             val movie = if (isMovie) SectionsPagerAdapter.MOVIE else SectionsPagerAdapter.TV
@@ -1817,7 +1935,9 @@ class DetailActivity : BaseActivity() {
                     // Close connection and return the data from the webpage.
                     bufferedReader.close()
                     val response = stringBuilder.toString()
-                    handler.post { onPostExecute(response) }
+                    withContext(Dispatchers.Main) {
+                        onCastPostExecute(response)
+                    }
                 } catch (ioe: IOException) {
                     ioe.printStackTrace()
                 }
@@ -1825,87 +1945,81 @@ class DetailActivity : BaseActivity() {
                 ioe.printStackTrace()
             }
         }
+    }
 
-        private fun onPostExecute(response: String?) {
-            if (!response.isNullOrEmpty()) {
-                // Set all the actors in a list and send that to the adapter.
-                try {
-                    val reader = JSONObject(response)
+    private fun onCastPostExecute(response: String?) {
+        if (!response.isNullOrEmpty()) {
+            // Set all the actors in a list and send that to the adapter.
+            try {
+                val reader = JSONObject(response)
 
-                    // Add the cast to the castView
-                    if (reader.getJSONArray("cast").length() <= 0) {
-                        // This movie has no available cast,
-                        // do not show the cast related views.
-                        val textView = mActivity.findViewById<TextView>(R.id.castTitle)
-                        val view = mActivity.findViewById<View>(R.id.secondDivider)
-                        textView.visibility = View.GONE
-                        view.visibility = View.GONE
-                        binding.castRecyclerView.visibility = View.GONE
-                    } else {
-                        val castArray = reader.getJSONArray("cast")
+                // Add the cast to the castView
+                if (reader.getJSONArray("cast").length() <= 0) {
+                    // This movie has no available cast,
+                    // do not show the cast related views.
+                    binding.castTitle.visibility = View.GONE
+                    binding.secondDivider.visibility = View.GONE
+                    binding.castRecyclerView.visibility = View.GONE
+                } else {
+                    val castArray = reader.getJSONArray("cast")
 
-                        // Clear the castArrayList before adding new data
-                        castArrayList.clear()
-                        for (i in 0 until castArray.length()) {
-                            val castData = castArray.getJSONObject(i)
-                            castArrayList.add(castData)
-                        }
-                        castAdapter = CastBaseAdapter(
-                            castArrayList,
-                            applicationContext
-                        )
-                        binding.castRecyclerView.adapter = castAdapter
+                    // Clear the castArrayList before adding new data
+                    castArrayList.clear()
+                    for (i in 0 until castArray.length()) {
+                        val castData = castArray.getJSONObject(i)
+                        castArrayList.add(castData)
                     }
-
-                    // Add the crew to the crewView
-                    if (reader.getJSONArray("crew").length() <= 0) {
-                        // This movie has no available cast,
-                        // do not show the cast related views.
-                        val textView = mActivity.findViewById<TextView>(R.id.crewTitle)
-                        val view = mActivity.findViewById<View>(R.id.thirdDivider)
-                        textView.visibility = View.GONE
-                        view.visibility = View.GONE
-                        binding.crewRecyclerView.visibility = View.GONE
-                    } else {
-                        val crewArray = reader.getJSONArray("crew")
-
-                        // Clear the crewArrayList before adding new data
-                        crewArrayList.clear()
-                        for (i in 0 until crewArray.length()) {
-                            val crewData = crewArray.getJSONObject(i)
-
-                            // Before adding the JSONObject to the Array,
-                            // "camouflage" it as an actor so it can use
-                            // the CastBaseAdapter
-                            crewData.put("character", crewData.getString("job"))
-                            crewArrayList.add(crewData)
-                        }
-                        crewAdapter = CastBaseAdapter(
-                            crewArrayList,
-                            applicationContext
-                        )
-                        binding.crewRecyclerView.adapter = crewAdapter
-                    }
-                    mCastAndCrewLoaded = true
-                } catch (je: JSONException) {
-                    je.printStackTrace()
+                    castAdapter = CastBaseAdapter(
+                        castArrayList,
+                        applicationContext
+                    )
+                    binding.castRecyclerView.adapter = castAdapter
                 }
+
+                // Add the crew to the crewView
+                if (reader.getJSONArray("crew").length() <= 0) {
+                    // This movie has no available cast,
+                    // do not show the cast related views.
+                    binding.crewTitle.visibility = View.GONE
+                    binding.thirdDivider.visibility = View.GONE
+                    binding.crewRecyclerView.visibility = View.GONE
+                } else {
+                    val crewArray = reader.getJSONArray("crew")
+
+                    // Clear the crewArrayList before adding new data
+                    crewArrayList.clear()
+                    for (i in 0 until crewArray.length()) {
+                        val crewData = crewArray.getJSONObject(i)
+
+                        // Before adding the JSONObject to the Array,
+                        // "camouflage" it as an actor so it can use
+                        // the CastBaseAdapter
+                        crewData.put("character", crewData.getString("job"))
+                        crewArrayList.add(crewData)
+                    }
+                    crewAdapter = CastBaseAdapter(
+                        crewArrayList,
+                        applicationContext
+                    )
+                    binding.crewRecyclerView.adapter = crewAdapter
+                }
+                mCastAndCrewLoaded = true
+            } catch (je: JSONException) {
+                je.printStackTrace()
             }
-            hideEmptyRecyclerView(binding.castRecyclerView, binding.castTitle)
-            hideEmptyRecyclerView(binding.castRecyclerView, binding.crewTitle)
+        }
+        hideEmptyRecyclerView(binding.castRecyclerView, binding.castTitle)
+        hideEmptyRecyclerView(binding.castRecyclerView, binding.crewTitle)
+    }
+
+    private fun startSimilarMovieList() {
+        lifecycleScope.launch {
+            val response = doInBackground()
+            onPostExecuteSimilarMovies(response)
         }
     }
 
-    // Load a list with similar movies.
-    private val handler = Handler(Looper.getMainLooper())
-    private fun startSimilarMovieList() {
-        Thread {
-            val response = doInBackground()
-            handler.post { onPostExecute(response) }
-        }.start()
-    }
-
-    private fun doInBackground(): String? {
+    private suspend fun doInBackground(): String? = withContext(Dispatchers.IO) {
         var line: String?
         val stringBuilder = StringBuilder()
         val movie = if (isMovie) SectionsPagerAdapter.MOVIE else SectionsPagerAdapter.TV
@@ -1930,7 +2044,7 @@ class DetailActivity : BaseActivity() {
 
                 // Close connection and return the data from the webpage.
                 bufferedReader.close()
-                return stringBuilder.toString()
+                return@withContext stringBuilder.toString()
             } catch (ioe: IOException) {
                 ioe.printStackTrace()
             }
@@ -1939,10 +2053,10 @@ class DetailActivity : BaseActivity() {
         }
 
         // Loading the dataset failed, return null.
-        return null
+        return@withContext null
     }
 
-    private fun onPostExecute(response: String?) {
+    private fun onPostExecuteSimilarMovies(response: String?) {
         if (!response.isNullOrEmpty()) {
             // Set all the similar movies in a list and send that to the adapter.
             try {
@@ -1965,138 +2079,68 @@ class DetailActivity : BaseActivity() {
     }
 
     // Load the movie details.
-    inner class MovieDetailsThread : Thread() {
-        private val handler = Handler(Looper.getMainLooper())
-        override fun run() {
-            val client = OkHttpClient()
-            val type = if (isMovie) SectionsPagerAdapter.MOVIE else SectionsPagerAdapter.TV
-            val additionalEndpoint =
-                if (isMovie) "release_dates,external_ids,keywords" else "content_ratings,external_ids,keywords"
-            val baseUrl =
-                "https://api.themoviedb.org/3/$type/$movieId?append_to_response=$additionalEndpoint"
-            val urlWithLanguage = baseUrl + getLanguageParameter(
-                applicationContext
-            )
+    private fun fetchMovieDetails(url: String): JSONObject {
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("accept", "application/json")
+            .addHeader("Authorization", "Bearer $api_read_access_token")
+            .build()
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body()!!.string()
+            return JSONObject(responseBody)
+        }
+    }
+
+    private fun onPostExecute(movieData: JSONObject?) {
+        if (movieData != null) {
             try {
-                // First request with language parameter
-                var movieData = fetchMovieDetails(client, urlWithLanguage)
-
-                // Check if overview is empty
-                if (movieData.getString("overview").isEmpty()) {
-                    // Second request without language parameter
-                    movieData = fetchMovieDetails(client, baseUrl)
+                setMovieData(movieData)
+                showKeywords(movieData)
+                showExternalIds(movieData)
+                if (movieData.has("number_of_seasons")) {
+                    numSeason = movieData.getInt("number_of_seasons")
                 }
-                val finalMovieData = movieData
-                handler.post { onPostExecute(finalMovieData) }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-
-        @Throws(IOException::class, JSONException::class)
-        private fun fetchMovieDetails(client: OkHttpClient, url: String): JSONObject {
-            val request = Request.Builder()
-                .url(url)
-                .get()
-                .addHeader("accept", "application/json")
-                .addHeader("Authorization", "Bearer $api_read_access_token")
-                .build()
-            client.newCall(request).execute().use { response ->
-                val responseBody = response.body()!!.string()
-                return JSONObject(responseBody)
-            }
-        }
-
-        private fun onPostExecute(movieData: JSONObject?) {
-            if (movieData != null) {
-                try {
-                    setMovieData(movieData)
-                    showKeywords(movieData)
-                    showExternalIds(movieData)
-                    if (movieData.has("number_of_seasons")) {
-                        numSeason = movieData.getInt("number_of_seasons")
-                    }
-                    //seasons
-                    if (movieData.has("seasons")) {
-                        seasons = movieData.getJSONArray("seasons")
-                    }
-                    if (isMovie) {
-                        val releaseDatesObject = movieData.getJSONObject("release_dates")
-                        val resultsArray = releaseDatesObject.getJSONArray("results")
-                        var defaultResult: JSONObject? = null
-                        for (i in 0 until resultsArray.length()) {
-                            val result = resultsArray.getJSONObject(i)
-                            val isoCountry = result.getString("iso_3166_1")
-                            if (isoCountry == Locale.getDefault().country) {
-                                processReleaseDates(result)
-                                return
-                            }
-                            if (isoCountry == "US") {
-                                defaultResult = result
-                            }
-                        }
-                        defaultResult?.let { processReleaseDates(it) }
-                    } else {
-                        val contentRatingsObject = movieData.getJSONObject("content_ratings")
-                        val contentRrArray = contentRatingsObject.getJSONArray("results")
-                        var isLocaleRatingFound = false
-                        var usRating: String? = null
-                        for (i in 0 until contentRrArray.length()) {
-                            val result = contentRrArray.getJSONObject(i)
-                            val isoCountry = result.getString("iso_3166_1")
-                            val rating = result.getString("rating")
-                            if (isoCountry.equals(Locale.getDefault().country, ignoreCase = true)) {
-                                handler.post {
-                                    binding.certification.text = "$rating ($isoCountry)"
-                                }
-                                isLocaleRatingFound = true
-                                break
-                            }
-                            if (isoCountry.equals("US", ignoreCase = true)) {
-                                usRating = rating
-                            }
-                        }
-                        if (!isLocaleRatingFound && usRating != null) {
-                            val finalUsRating: String = usRating
-                            handler.post { binding.certification.text = "$finalUsRating (US)" }
-                        }
-                    }
-                    mMovieDetailsLoaded = true
-                } catch (e: JSONException) {
-                    e.printStackTrace()
+                if (movieData.has("seasons")) {
+                    seasons = movieData.getJSONArray("seasons")
                 }
-            }
-        }
-
-        private fun showExternalIds(movieData: JSONObject) {
-            try {
-                val externalIdsObject = movieData.getJSONObject("external_ids")
-                val imdbId = externalIdsObject.getString("imdb_id")
-                // if imdbId is not available, set the text to "IMDB (not available)"
-                if (imdbId == "null") {
-                    binding.imdbBtn.isEnabled = false
+                if (isMovie) {
+                    val releaseDatesObject = movieData.getJSONObject("release_dates")
+                    val resultsArray = releaseDatesObject.getJSONArray("results")
+                    var defaultResult: JSONObject? = null
+                    for (i in 0 until resultsArray.length()) {
+                        val result = resultsArray.getJSONObject(i)
+                        val isoCountry = result.getString("iso_3166_1")
+                        if (isoCountry == Locale.getDefault().country) {
+                            processReleaseDates(result)
+                            return
+                        }
+                        if (isoCountry == "US") {
+                            defaultResult = result
+                        }
+                    }
+                    defaultResult?.let { processReleaseDates(it) }
                 } else {
-                    // if imdbId is available, set the text to "IMDB" and set an onClickListener to open the IMDB page
-                    binding.imdbBtn.setOnClickListener {
-                        val url = "https://www.imdb.com/title/$imdbId"
-                        val builder = CustomTabsIntent.Builder()
-                        val customTabsIntent = builder.build()
-                        // Check if there is any package available to handle the CustomTabsIntent
-                        if (customTabsIntent.intent.resolveActivity(packageManager) != null) {
-                            customTabsIntent.launchUrl(context, Uri.parse(url))
-                        } else {
-                            // If no package is available to handle the CustomTabsIntent, launch the URL in a web browser
-                            val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-                            if (browserIntent.resolveActivity(packageManager) != null) {
-                                startActivity(browserIntent)
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    R.string.no_browser_available,
-                                    Toast.LENGTH_LONG
-                                ).show()
-                            }
+                    val contentRatingsObject = movieData.getJSONObject("content_ratings")
+                    val contentRrArray = contentRatingsObject.getJSONArray("results")
+                    var isLocaleRatingFound = false
+                    var usRating: String? = null
+                    for (i in 0 until contentRrArray.length()) {
+                        val result = contentRrArray.getJSONObject(i)
+                        val isoCountry = result.getString("iso_3166_1")
+                        val rating = result.getString("rating")
+                        if (isoCountry.equals(Locale.getDefault().country, ignoreCase = true)) {
+                            binding.certification.text = "$rating ($isoCountry)"
+                            isLocaleRatingFound = true
+                            break
                         }
+                        if (isoCountry.equals("US", ignoreCase = true)) {
+                            usRating = rating
+                        }
+                    }
+                    if (!isLocaleRatingFound && usRating != null) {
+                        binding.certification.text = "$usRating (US)"
                     }
                 }
                 mMovieDetailsLoaded = true
@@ -2104,41 +2148,95 @@ class DetailActivity : BaseActivity() {
                 e.printStackTrace()
             }
         }
+    }
 
-        private fun showKeywords(movieData: JSONObject) {
-            try {
-                val keywordsObject = movieData.getJSONObject("keywords")
-                val keywordsArray =
-                    if (isMovie) keywordsObject.getJSONArray("keywords") else keywordsObject.getJSONArray(
-                        "results"
-                    )
-                val keywordsLayout = findViewById<FlexboxLayout>(R.id.keywordsLayout)
-                keywordsLayout.removeAllViews()
-                for (i in 0 until keywordsArray.length()) {
-                    val keyword = keywordsArray.getJSONObject(i)
-                    val keywordName = keyword.getString("name")
-                    val cardView = MaterialCardView(context)
-                    cardView.radius = 5f
-                    cardView.setCardBackgroundColor(Color.TRANSPARENT)
-                    cardView.strokeWidth = 2
-                    cardView.setContentPadding(5, 5, 5, 5)
-                    val keywordTextView = TextView(context)
-                    keywordTextView.text = keywordName
-                    keywordTextView.setPadding(8, 4, 8, 4)
-                    keywordTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
-                    cardView.addView(keywordTextView)
-                    val params = FlexboxLayout.LayoutParams(
-                        FlexboxLayout.LayoutParams.WRAP_CONTENT,
-                        FlexboxLayout.LayoutParams.WRAP_CONTENT
-                    )
-                    params.setMargins(8, 8, 8, 8)
-                    cardView.layoutParams = params
-                    keywordsLayout.addView(cardView)
+    private fun showExternalIds(movieData: JSONObject) {
+        try {
+            val externalIdsObject = movieData.getJSONObject("external_ids")
+            val imdbId = externalIdsObject.getString("imdb_id")
+            if (imdbId == "null") {
+                binding.imdbBtn.isEnabled = false
+            } else {
+                binding.imdbBtn.setOnClickListener {
+                    val url = "https://www.imdb.com/title/$imdbId"
+                    val builder = CustomTabsIntent.Builder()
+                    val customTabsIntent = builder.build()
+                    if (customTabsIntent.intent.resolveActivity(packageManager) != null) {
+                        customTabsIntent.launchUrl(context, Uri.parse(url))
+                    } else {
+                        val browserIntent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                        if (browserIntent.resolveActivity(packageManager) != null) {
+                            startActivity(browserIntent)
+                        } else {
+                            Toast.makeText(context, R.string.no_browser_available, Toast.LENGTH_LONG).show()
+                        }
+                    }
                 }
-            } catch (e: JSONException) {
+            }
+            mMovieDetailsLoaded = true
+        } catch (e: JSONException) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun showKeywords(movieData: JSONObject) {
+        try {
+            val keywordsObject = movieData.getJSONObject("keywords")
+            val keywordsArray = if (isMovie) keywordsObject.getJSONArray("keywords") else keywordsObject.getJSONArray("results")
+            val keywordsLayout = findViewById<FlexboxLayout>(R.id.keywordsLayout)
+            keywordsLayout.removeAllViews()
+            for (i in 0 until keywordsArray.length()) {
+                val keyword = keywordsArray.getJSONObject(i)
+                val keywordName = keyword.getString("name")
+                val cardView = MaterialCardView(context)
+                cardView.radius = 5f
+                cardView.setCardBackgroundColor(Color.TRANSPARENT)
+                cardView.strokeWidth = 2
+                cardView.setContentPadding(5, 5, 5, 5)
+                val keywordTextView = TextView(context)
+                keywordTextView.text = keywordName
+                keywordTextView.setPadding(8, 4, 8, 4)
+                keywordTextView.setTextSize(TypedValue.COMPLEX_UNIT_SP, 15f)
+                cardView.addView(keywordTextView)
+                val params = FlexboxLayout.LayoutParams(
+                    FlexboxLayout.LayoutParams.WRAP_CONTENT,
+                    FlexboxLayout.LayoutParams.WRAP_CONTENT
+                )
+                params.setMargins(8, 8, 8, 8)
+                cardView.layoutParams = params
+                keywordsLayout.addView(cardView)
+            }
+        } catch (e: JSONException) {
+            e.printStackTrace()
+            val keywordsLayout = findViewById<FlexboxLayout>(R.id.keywordsLayout)
+            keywordsLayout.visibility = View.GONE
+        }
+    }
+
+    private fun fetchMovieDetailsCoroutine() {
+        lifecycleScope.launch {
+            try {
+                OkHttpClient()
+                val type = if (isMovie) SectionsPagerAdapter.MOVIE else SectionsPagerAdapter.TV
+                val additionalEndpoint = if (isMovie) "release_dates,external_ids,keywords" else "content_ratings,external_ids,keywords"
+                val baseUrl = "https://api.themoviedb.org/3/$type/$movieId?append_to_response=$additionalEndpoint"
+                val urlWithLanguage = baseUrl + getLanguageParameter(applicationContext)
+
+                var movieData: JSONObject = withContext(Dispatchers.IO) {
+                    fetchMovieDetails(urlWithLanguage)
+                }
+
+                if (movieData.getString("overview").isEmpty()) {
+                    movieData = withContext(Dispatchers.IO) {
+                        fetchMovieDetails(baseUrl)
+                    }
+                }
+
+                withContext(Dispatchers.Main) {
+                    onPostExecute(movieData)
+                }
+            } catch (e: Exception) {
                 e.printStackTrace()
-                val keywordsLayout = findViewById<FlexboxLayout>(R.id.keywordsLayout)
-                keywordsLayout.visibility = View.GONE
             }
         }
     }

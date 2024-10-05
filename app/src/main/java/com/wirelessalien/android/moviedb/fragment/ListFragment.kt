@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
@@ -30,8 +30,6 @@ import android.database.SQLException
 import android.database.sqlite.SQLiteDatabase
 import android.os.Build
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -93,6 +91,7 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
             if (result.resultCode == Activity.RESULT_OK) {
                 usedFilter = true
                 filterAdapter()
+                updateShowViewAdapter()
             }
         }
 
@@ -140,7 +139,7 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
                 return when (menuItem.itemId) {
                     R.id.action_export -> {
                         // Handle export action
-                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                             if (ActivityCompat.checkSelfPermission(
                                     requireContext(),
                                     Manifest.permission.WRITE_EXTERNAL_STORAGE
@@ -163,7 +162,7 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
                     }
                     R.id.action_import -> {
                         // Handle import action
-                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                             if (ActivityCompat.checkSelfPermission(
                                     requireContext(),
                                     Manifest.permission.READ_EXTERNAL_STORAGE
@@ -200,6 +199,11 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
             updateShowViewAdapter()
             mDatabaseUpdate = false
         }
+
+        if (preferences.getBoolean(PERSISTENT_FILTERING_PREFERENCE, false)) {
+            filterAdapter()
+        }
+
         val fab = requireActivity().findViewById<FloatingActionButton>(R.id.fab)
         fab.setImageResource(R.drawable.ic_filter_list)
         fab.visibility = View.VISIBLE
@@ -539,32 +543,32 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
             ), ", "
         )
         if (withGenres != null && withGenres.isNotEmpty()) {
-            for (i in withGenres.indices) {
-                if (mSearchView) {
-                    for (j in mSearchShowArrayList.indices) {
-                        val showObject = mSearchShowArrayList[j]
-                        val idList = FilterActivity.convertStringToIntegerArrayList(
-                            showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
-                        )
-                        if (!idList.contains(withGenres[i])) {
-                            mSearchShowArrayList.removeAt(j)
-                        }
+            if (mSearchView) {
+                val iterator = mSearchShowArrayList.iterator()
+                while (iterator.hasNext()) {
+                    val showObject = iterator.next()
+                    val idList = FilterActivity.convertStringToIntegerArrayList(
+                        showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
+                    )
+                    if (!idList.containsAll(withGenres)) {
+                        iterator.remove()
                     }
-                } else {
-                    for (j in mShowArrayList.indices) {
-                        val showObject = mShowArrayList[j]
-                        val idList = FilterActivity.convertStringToIntegerArrayList(
-                            showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
-                        )
-                        if (!idList.contains(withGenres[i])) {
-                            mShowArrayList.removeAt(j)
-                        }
+                }
+            } else {
+                val iterator = mShowArrayList.iterator()
+                while (iterator.hasNext()) {
+                    val showObject = iterator.next()
+                    val idList = FilterActivity.convertStringToIntegerArrayList(
+                        showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
+                    )
+                    if (!idList.containsAll(withGenres)) {
+                        iterator.remove()
                     }
                 }
             }
         }
 
-        // Remove shows that contain certain genres from the list.
+// Remove shows that contain certain genres from the list.
         val withoutGenres = FilterActivity.convertStringToIntegerArrayList(
             sharedPreferences.getString(
                 FilterActivity.FILTER_WITHOUT_GENRES,
@@ -572,26 +576,26 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
             ), ", "
         )
         if (withoutGenres != null && withoutGenres.isNotEmpty()) {
-            for (i in withoutGenres.indices) {
-                if (mSearchView) {
-                    for (j in mSearchShowArrayList.indices) {
-                        val showObject = mSearchShowArrayList[j]
-                        val idList = FilterActivity.convertStringToIntegerArrayList(
-                            showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
-                        )
-                        if (idList.contains(withoutGenres[i])) {
-                            mSearchShowArrayList.removeAt(j)
-                        }
+            if (mSearchView) {
+                val iterator = mSearchShowArrayList.iterator()
+                while (iterator.hasNext()) {
+                    val showObject = iterator.next()
+                    val idList = FilterActivity.convertStringToIntegerArrayList(
+                        showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
+                    )
+                    if (idList.any { withoutGenres.contains(it) }) {
+                        iterator.remove()
                     }
-                } else {
-                    for (j in mShowArrayList.indices) {
-                        val showObject = mShowArrayList[j]
-                        val idList = FilterActivity.convertStringToIntegerArrayList(
-                            showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
-                        )
-                        if (idList.contains(withoutGenres[i])) {
-                            mShowArrayList.removeAt(j)
-                        }
+                }
+            } else {
+                val iterator = mShowArrayList.iterator()
+                while (iterator.hasNext()) {
+                    val showObject = iterator.next()
+                    val idList = FilterActivity.convertStringToIntegerArrayList(
+                        showObject.optString(ShowBaseAdapter.KEY_GENRES), ","
+                    )
+                    if (idList.any { withoutGenres.contains(it) }) {
+                        iterator.remove()
                     }
                 }
             }
@@ -632,9 +636,7 @@ class ListFragment : BaseFragment(), AdapterDataChangedListener {
             false
         )
         mShowView.adapter = mShowAdapter
-        val handler = Handler(Looper.getMainLooper())
-        val genreListThread = GenreListThread("tv", handler)
-        genreListThread.start()
+        fetchGenreList("tv")
     }
 
     /**

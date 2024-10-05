@@ -1,27 +1,25 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
 import android.os.Bundle
-import android.os.Handler
-import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -33,6 +31,10 @@ import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.wirelessalien.android.moviedb.R
 import com.wirelessalien.android.moviedb.activity.BaseActivity
 import com.wirelessalien.android.moviedb.adapter.ShowBaseAdapter
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONException
@@ -53,6 +55,8 @@ class WatchlistFragment : BaseFragment() {
     @Volatile
     private var isLoadingData = false
     private var mShowListLoaded = false
+    private val showIdSet = HashSet<Int>()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         preferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
@@ -63,7 +67,7 @@ class WatchlistFragment : BaseFragment() {
 
     override fun doNetworkWork() {
         if (!mShowListLoaded) {
-            WatchListThread(mListType, 1).start()
+            loadWatchList(mListType, 1)
         }
     }
 
@@ -71,15 +75,9 @@ class WatchlistFragment : BaseFragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        // Inflate the layout for this fragment
         val fragmentView = inflater.inflate(R.layout.fragment_show, container, false)
-        // Initialize mListType with "movie" on first load
-        mListType = if (preferences.getBoolean(DEFAULT_MEDIA_TYPE, false)) {
-            "tv"
-        } else {
-            "movie"
-        }
-        WatchListThread(mListType, 1).start()
+        mListType = if (preferences.getBoolean(DEFAULT_MEDIA_TYPE, false)) "tv" else "movie"
+        loadWatchList(mListType, 1)
         showShowList(fragmentView)
         val fab = requireActivity().findViewById<FloatingActionButton>(R.id.fab)
         updateFabIcon(fab, mListType)
@@ -93,9 +91,11 @@ class WatchlistFragment : BaseFragment() {
             return
         }
         mShowArrayList.clear()
+        showIdSet.clear()
+        mShowAdapter.notifyDataSetChanged()
         currentPage = 1
         mListType = if ("movie" == mListType) "tv" else "movie"
-        WatchListThread(mListType, 1).start()
+        loadWatchList(mListType, 1)
         val fab = requireActivity().findViewById<FloatingActionButton>(R.id.fab)
         updateFabIcon(fab, mListType)
     }
@@ -109,20 +109,10 @@ class WatchlistFragment : BaseFragment() {
     }
 
     private fun updateFabIcon(fab: FloatingActionButton, listType: String?) {
-        if ("movie" == listType) {
-            fab.setImageResource(R.drawable.ic_movie)
-        } else {
-            fab.setImageResource(R.drawable.ic_tv_show)
-        }
+        fab.setImageResource(if ("movie" == listType) R.drawable.ic_movie else R.drawable.ic_tv_show)
     }
 
-    /**
-     * Loads a list of shows from the API.
-     *
-     */
     private fun createShowList(mode: String?) {
-
-        // Create a MovieBaseAdapter and load the first page
         mShowArrayList = ArrayList()
         mShowGenreList = HashMap()
         mShowAdapter = ShowBaseAdapter(
@@ -135,138 +125,109 @@ class WatchlistFragment : BaseFragment() {
         (requireActivity() as BaseActivity).checkNetwork()
     }
 
-    /**
-     * Visualises the list of shows on the screen.
-     *
-     * @param fragmentView the view to attach the ListView to.
-     */
     override fun showShowList(fragmentView: View) {
         super.showShowList(fragmentView)
-
-        // Dynamically load new pages when user scrolls down.
         mShowView.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
-                if (dy > 0 && recyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) { // Check for scroll down and if user is actively scrolling.
+                if (dy > 0 && recyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) {
                     visibleItemCount = mShowLinearLayoutManager.childCount
                     totalItemCount = mShowLinearLayoutManager.itemCount
                     pastVisibleItems = mShowLinearLayoutManager.findFirstVisibleItemPosition()
-                    if (loading) {
-                        if (totalItemCount > previousTotal) {
-                            loading = false
-                            previousTotal = totalItemCount
-                            currentPage++
-                        }
+                    if (loading && totalItemCount > previousTotal) {
+                        loading = false
+                        previousTotal = totalItemCount
+                        currentPage++
                     }
-                    var threshold = visibleThreshold
-                    if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true)) {
-                        // It is a grid view, so the threshold should be bigger.
+                    val threshold = if (preferences.getBoolean(SHOWS_LIST_PREFERENCE, true)) {
                         val gridSizePreference = preferences.getInt(GRID_SIZE_PREFERENCE, 3)
-                        threshold = gridSizePreference * gridSizePreference
+                        gridSizePreference * gridSizePreference
+                    } else {
+                        visibleThreshold
                     }
-
-                    // When no new pages are being loaded,
-                    // but the user is at the end of the list, load the new page.
                     if (!loading && visibleItemCount + pastVisibleItems + threshold >= totalItemCount) {
-                        // Load the next page of the content in the background.
-                        if (mShowArrayList.size > 0) {
-                            WatchListThread(mListType, currentPage.toString().toInt()).start()
+                        if (mShowArrayList.isNotEmpty()) {
+                            currentPage++
+                            loadWatchList(mListType, currentPage)
                         }
                         loading = true
-                        currentPage++
                     }
                 }
             }
         })
     }
 
-    private inner class WatchListThread(private val listType: String?, private val page: Int) :
-        Thread() {
-        private val handler: Handler = Handler(Looper.getMainLooper())
-
-        override fun run() {
+    private fun loadWatchList(listType: String?, page: Int) {
+        CoroutineScope(Dispatchers.Main).launch {
             isLoadingData = true
-            if (!isAdded) {
-                return
+            if (!isAdded) return@launch
+
+            val progressBar = Optional.ofNullable(requireActivity().findViewById<ProgressBar>(R.id.progressBar))
+            progressBar.ifPresent { it.visibility = View.VISIBLE }
+
+            val response = withContext(Dispatchers.IO) {
+                fetchWatchListFromApi(listType, page)
             }
-            handler.post {
-                if (isAdded) {
-                    val progressBar =
-                        Optional.ofNullable(requireActivity().findViewById<ProgressBar>(R.id.progressBar))
-                    progressBar.ifPresent { bar: ProgressBar -> bar.visibility = View.VISIBLE }
-                }
+
+            handleResponse(response)
+            progressBar.ifPresent { it.visibility = View.GONE }
+            isLoadingData = false
+        }
+    }
+
+    private fun fetchWatchListFromApi(listType: String?, page: Int): String? {
+        val accessToken = preferences.getString("access_token", "")
+        val accountId = preferences.getString("account_id", "")
+        val url = "https://api.themoviedb.org/4/account/$accountId/$listType/watchlist?page=$page"
+        val client = OkHttpClient()
+        val request = Request.Builder()
+            .url(url)
+            .get()
+            .addHeader("Content-Type", "application/json;charset=utf-8")
+            .addHeader("Authorization", "Bearer $accessToken")
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                response.body()?.string()
             }
-            val access_token = preferences.getString("access_token", "")
-            val accountId = preferences.getString("account_id", "")
-            val url =
-                "https://api.themoviedb.org/4/account/$accountId/$listType/watchlist?page=$page"
-            val client = OkHttpClient()
-            val request = Request.Builder()
-                .url(url)
-                .get()
-                .addHeader("Content-Type", "application/json;charset=utf-8")
-                .addHeader("Authorization", "Bearer $access_token")
-                .build()
+        } catch (e: IOException) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    private fun handleResponse(response: String?) {
+        if (isAdded && !response.isNullOrEmpty()) {
+            val position = try {
+                mShowLinearLayoutManager.findFirstVisibleItemPosition()
+            } catch (npe: NullPointerException) {
+                0
+            }
+
             try {
-                client.newCall(request).execute().use { response ->
-                    var responseBody: String? = null
-                    if (response.body() != null) {
-                        responseBody = response.body()!!.string()
-                    }
-                    handleResponse(responseBody)
-                }
-            } catch (e: IOException) {
-                e.printStackTrace()
-                hideProgressBar()
-            } finally {
-                isLoadingData = false
-                hideProgressBar()
-            }
-        }
-
-        private fun handleResponse(response: String?) {
-            handler.post {
-                if (isAdded && !response.isNullOrEmpty()) {
-                    // Keep the user at the same position in the list.
-                    val position: Int = try {
-                        mShowLinearLayoutManager.findFirstVisibleItemPosition()
-                    } catch (npe: NullPointerException) {
-                        0
-                    }
-
-                    // Convert the JSON webpage to JSONObjects
-                    // Add the JSONObjects to the list with movies/series.
-                    try {
-                        val reader = JSONObject(response)
-                        val arrayData = reader.getJSONArray("results")
-                        for (i in 0 until arrayData.length()) {
-                            val websiteData = arrayData.getJSONObject(i)
-                            mShowArrayList.add(websiteData)
+                val reader = JSONObject(response)
+                val arrayData = reader.getJSONArray("results")
+                val newItems = mutableListOf<JSONObject>()
+                for (i in 0 until arrayData.length()) {
+                    val websiteData = arrayData.getJSONObject(i)
+                    val showId = websiteData.getInt("id")
+                    if (!showIdSet.contains(showId)) {
+                        if (websiteData.getString("overview").isEmpty()) {
+                            websiteData.put("overview", "Overview may not be available in the specified language.")
                         }
-
-                        // Reload the adapter (with the new page)
-                        // and set the user to his old position.
-                        mShowView.adapter = mShowAdapter
-                        mShowView.scrollToPosition(position)
-                        mShowListLoaded = true
-                        hideProgressBar()
-                    } catch (je: JSONException) {
-                        je.printStackTrace()
-                        hideProgressBar()
+                        newItems.add(websiteData)
+                        showIdSet.add(showId)
                     }
                 }
-                loading = false
+                mShowArrayList.addAll(newItems)
+                mShowAdapter.notifyItemRangeInserted(mShowArrayList.size - newItems.size, newItems.size)
+                mShowView.adapter = mShowAdapter
+                mShowView.scrollToPosition(position)
+                mShowListLoaded = true
+            } catch (je: JSONException) {
+                je.printStackTrace()
             }
         }
-
-        private fun hideProgressBar() {
-            handler.post {
-                if (isAdded) {
-                    val progressBar =
-                        Optional.ofNullable(requireActivity().findViewById<ProgressBar>(R.id.progressBar))
-                    progressBar.ifPresent { bar: ProgressBar -> bar.visibility = View.GONE }
-                }
-            }
-        }
+        loading = false
     }
 
     companion object {

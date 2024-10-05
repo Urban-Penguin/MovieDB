@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.activity
 
@@ -52,8 +52,10 @@ import com.wirelessalien.android.moviedb.helper.ConfigHelper
 import com.wirelessalien.android.moviedb.helper.PeopleDatabaseHelper
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
@@ -68,6 +70,7 @@ import java.util.Date
 import java.util.concurrent.TimeUnit
 import java.util.Locale
 import kotlin.math.abs
+import java.util.concurrent.Executors
 
 /**
  * This class displays information about person objects.
@@ -102,11 +105,10 @@ class CastActivity : BaseActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        binding = ActivityCastBinding.inflate(
-            layoutInflater
-        )
+        binding = ActivityCastBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setNavigationDrawer()
+        setSupportActionBar(binding.toolbar)
+        supportActionBar?.title = getString(R.string.title_people)
         setBackButtons()
         val preferences = PreferenceManager.getDefaultSharedPreferences(this)
         API_KEY = ConfigHelper.getConfigValue(applicationContext, "api_key")
@@ -328,7 +330,6 @@ class CastActivity : BaseActivity() {
             val actorId = actorObject.optInt("id")
             if (dbHelper.personExists(actorId)) {
                 dbHelper.deleteById(actorId)
-                Log.d("CastActivity", "Person deleted from database")
                 item.setIcon(R.drawable.ic_star_border)
             } else {
                 // If the person does not exist in the database, insert the person
@@ -343,7 +344,6 @@ class CastActivity : BaseActivity() {
                 val homepage = actorObject.optString("homepage")
                 dbHelper.insert(actorId, name, birthday, deathday, biography, placeOfBirth, popularity, profilePath, imdbId, homepage)
                 item.setIcon(R.drawable.ic_star)
-                Log.d("CastActivity", "Person saved to database")
             }
         }
         return super.onOptionsItemSelected(item)
@@ -354,54 +354,60 @@ class CastActivity : BaseActivity() {
      *
      * @param actorObject the JSONObject that it takes the data from.
      */
-    private fun setActorData(actorObject: JSONObject) {
+    private fun setActorData(actorObject: JSONObject?) {
 
-        // Check if actorObject values differ from the current values,
-        // if they do, use the actorObject values (as they are probably
-        // more recent).
-        try {
-            // Set the actorId
-            if (actorObject.has("id")) {
-                actorId = actorObject.getString("id").toInt()
+        if (actorObject == null) {
+            Log.e("CastActivity", "actorObject is null")
+            return
+        }
+
+        actorId = actorObject.optInt("id", actorId)
+
+        // If the name is different in the new dataset, change it.
+        actorObject.optString("name").let { name ->
+            if (name != binding.actorName.text.toString()) {
+                binding.actorName.text = name
             }
+        }
 
-            // If the name is different in the new dataset, change it.
-            if (actorObject.has("name") && actorObject.getString("name") != binding.actorName.text.toString()) {
-                binding.actorName.text = actorObject.getString("name")
+        // If the place of birth is different in the new dataset, change it.
+        actorObject.optString("place_of_birth").let { placeOfBirth ->
+            if (placeOfBirth != binding.actorPlaceOfBirth.text.toString()) {
+                binding.actorPlaceOfBirth.text = getString(R.string.place_of_birth) + placeOfBirth
             }
+        }
 
-            // If the place of birth is different in the new dataset, change it.
-            if (actorObject.has("place_of_birth") && actorObject.getString("place_of_birth") != binding.actorPlaceOfBirth
-                    .text.toString()
-            ) {
-                binding.actorPlaceOfBirth.text =
-                    getString(R.string.place_of_birth) + actorObject.getString("place_of_birth")
-            }
-
-            // If the birthday is different in the new dataset, change it.
-            val localFormat = DateFormat.getDateInstance(DateFormat.DEFAULT, Locale.getDefault())
-            if (actorObject.has("birthday") && actorObject.getString("birthday") != binding.actorBirthday
-                    .text.toString()) {
-                if (actorObject.isNull("birthday")) {
-                    binding.actorBirthday.text = getString(R.string.birthday) + actorObject.getString("birthday")
-                } else {
-                    val birthday: Date = sdf.parse(actorObject.getString("birthday"))
-                    val birthdayString: String = localFormat.format(birthday)
-                    if (actorObject.isNull("deathday")) {
-                        val currentDate = Date()
-                        val currentAge: Long = Math.floorDiv(
-                            TimeUnit.DAYS.convert(
-                                abs(currentDate.time - birthday.time),
-                                TimeUnit.MILLISECONDS
-                            ), 365
-                        )
+        // If the birthday is different in the new dataset, change it.
+        val localFormat =
+            DateFormat.getDateInstance(DateFormat.DEFAULT, Locale.getDefault())
+        actorObject.optString("birthday").let { birthday ->
+            if (birthday != binding.actorBirthday.text.toString()) {
+                binding.actorBirthday.text = getString(R.string.birthday) + birthday
+                if (actorObject.has("birthday") && actorObject.getString("birthday") != binding.actorBirthday
+                        .text.toString()
+                ) {
+                    if (actorObject.isNull("birthday")) {
                         binding.actorBirthday.text =
-                            getString(R.string.birthday) + birthdayString + " (" + currentAge + " " + getString(
-                                R.string.years
-                            ) + ")"
+                            getString(R.string.birthday) + actorObject.getString("birthday")
                     } else {
-                        binding.actorBirthday.text =
-                            getString(R.string.birthday) + birthdayString
+                        val birthday: Date = sdf.parse(actorObject.getString("birthday"))
+                        val birthdayString: String = localFormat.format(birthday)
+                        if (actorObject.isNull("deathday")) {
+                            val currentDate = Date()
+                            val currentAge: Long = Math.floorDiv(
+                                TimeUnit.DAYS.convert(
+                                    abs(currentDate.time - birthday.time),
+                                    TimeUnit.MILLISECONDS
+                                ), 365
+                            )
+                            binding.actorBirthday.text =
+                                getString(R.string.birthday) + birthdayString + " (" + currentAge + " " + getString(
+                                    R.string.years
+                                ) + ")"
+                        } else {
+                            binding.actorBirthday.text =
+                                getString(R.string.birthday) + birthdayString
+                        }
                     }
                 }
             }
@@ -418,23 +424,21 @@ class CastActivity : BaseActivity() {
                     ), 365)
                 binding.actorDeathday.text = getString(R.string.deathday) + deathdayString + " (" + ageAtDeath + " " + getString(R.string.years) + ")"
             }
+        }
 
-            // If the biography is different in the new dataset, change it.
-            if (actorObject.has("biography") &&
-                actorObject.getString("biography") != binding.actorBiography.text.toString()
-            ) {
-                binding.actorBiography.text = actorObject.getString("biography")
+        // If the biography is different in the new dataset, change it.
+        actorObject.optString("biography").let { biography ->
+            if (biography != binding.actorBiography.text.toString()) {
+                binding.actorBiography.text = biography
             }
-            if (actorObject.getString("biography") == "") {
+            if (biography.isEmpty()) {
                 fetchActorDetails()
             }
-        } catch (e: JSONException) {
-            e.printStackTrace()
         }
     }
 
     /**
-     * Thread that retrieves the shows that the person is credited
+     * Coroutine that retrieves the shows that the person is credited
      * for from the API.
      */
 
@@ -488,7 +492,6 @@ class CastActivity : BaseActivity() {
         if (!response.isNullOrEmpty()) {
             // Break the JSON dataset down and add the JSONObjects to the array.
             try {
-                Log.d("bla", response.length.toString())
                 val reader = JSONObject(response)
                 var castMovieArray = JSONArray()
                 var crewMovieArray = JSONArray()
@@ -511,8 +514,6 @@ class CastActivity : BaseActivity() {
                         val actorMovies = castMovieArray.getJSONObject(i)
                         castMovieArrayList.add(actorMovies)
                     }
-
-                    Log.d("bla castmoviearray", castMovieArray.toString().length.toString())
 
                     // Set a new adapter so the RecyclerView
                     // shows the new items.
@@ -543,8 +544,6 @@ class CastActivity : BaseActivity() {
                         // (any heavy ones will cause the application to crash).
                         crewMovieArrayList.add(crewMovies)
                     }
-
-                    Log.d("bla crewmoviearray", crewMovieArray.toString().length.toString())
 
                     // Set a new adapter so the RecyclerView
                     // shows the new items.
@@ -585,11 +584,20 @@ class CastActivity : BaseActivity() {
     }
 
     /**
-     * Thread that retrieves the details of the person from the API.
+     * Coroutine that retrieves the details of the person from the API.
      */
+    // Define a single instance of OkHttpClient
+    private val client: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectionPool(ConnectionPool(5, 5, TimeUnit.MINUTES))
+            .build()
+    }
+
+    // Use a fixed thread pool for coroutines
+    private val coroutineDispatcher = Executors.newFixedThreadPool(4).asCoroutineDispatcher()
+
     private fun fetchActorDetails() {
-        CoroutineScope(Dispatchers.IO).launch {
-            val client = OkHttpClient()
+        CoroutineScope(coroutineDispatcher).launch {
             val baseUrl = "https://api.themoviedb.org/3/person/$actorId?api_key=$API_KEY"
             val urlWithLanguage = baseUrl + getLanguageParameter(applicationContext)
             try {
@@ -602,7 +610,8 @@ class CastActivity : BaseActivity() {
                     actorData = fetchActorDetails(client, baseUrl)
                 }
                 withContext(Dispatchers.Main) {
-                    onPostExecute(actorData)
+                    actorObject = actorData
+                    setActorData(actorObject)
                 }
             } catch (e: Exception) {
                 e.printStackTrace()

@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.adapter
 
@@ -39,16 +39,11 @@ import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.Locale
 
-class NowPlayingMovieAdapter
-/**
- * Sets up the adapter with the necessary configurations.
- *
- * @param showList  the list of shows that will be shown.
- */(private val mShowArrayList: ArrayList<JSONObject>) :
+class NowPlayingMovieAdapter (private val mShowArrayList: ArrayList<JSONObject>?) :
     RecyclerView.Adapter<NowPlayingMovieAdapter.ShowItemViewHolder?>() {
     override fun getItemCount(): Int {
         // Return the amount of items in the list.
-        return mShowArrayList.size
+        return mShowArrayList?.size ?: 0
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ShowItemViewHolder {
@@ -59,22 +54,10 @@ class NowPlayingMovieAdapter
     }
 
     override fun onBindViewHolder(holder: ShowItemViewHolder, position: Int) {
-        // Fill the views with the needed data.
-        val showData = mShowArrayList[position]
+        // Ensure the item at the position is not null
+        val showData = mShowArrayList?.get(position) ?: return
+
         val context = holder.showView.context
-        if (showData == null) {
-            // Handle the null case, e.g., set default values or hide the view.
-            holder.showTitle.setText(R.string.title)
-            holder.showImage.setBackgroundColor(
-                ResourcesCompat.getColor(
-                    holder.showView.context.resources,
-                    R.color.md_theme_primary,
-                    null
-                )
-            )
-            holder.showDate.text = ""
-            return
-        }
         // Fills the views with show details.
         try {
             // Load the thumbnail with Picasso.
@@ -91,7 +74,7 @@ class NowPlayingMovieAdapter
                 )
             } else {
                 Picasso.get().load(
-                    "https://image.tmdb.org/t/p/" + imageSize + showData.getString(
+                    "https://image.tmdb.org/t/p/$imageSize" + showData.getString(
                         KEY_POSTER
                     )
                 ).into(holder.showImage)

@@ -1,21 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?><!--
-  ~     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+  ~     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
   ~     forked from <https://notabug.org/nvb/MovieDB>
   ~
   ~     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
   ~
-  ~     Movie DB is free software: you can redistribute it and/or modify
+  ~     ShowCase is free software: you can redistribute it and/or modify
   ~     it under the terms of the GNU General Public License as published by
   ~     the Free Software Foundation, either version 3 of the License, or
   ~     (at your option) any later version.
   ~
-  ~     Movie DB is distributed in the hope that it will be useful,
+  ~     ShowCase is distributed in the hope that it will be useful,
   ~     but WITHOUT ANY WARRANTY; without even the implied warranty of
   ~     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   ~     GNU General Public License for more details.
   ~
   ~     You should have received a copy of the GNU General Public License
-  ~     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+  ~     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
   -->
 
 
@@ -32,17 +32,18 @@
         <com.google.android.material.appbar.MaterialToolbar
             android:id="@+id/toolbar"
             android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:layout_scrollFlags="scroll|enterAlways">
-
+            android:layout_height="wrap_content"
+            android:minHeight="?attr/actionBarSize"
+            app:layout_scrollFlags="noScroll">
         </com.google.android.material.appbar.MaterialToolbar>
-
     </com.google.android.material.appbar.AppBarLayout>
-    <FrameLayout
+
+    <androidx.fragment.app.FragmentContainerView
         android:id="@+id/fragment_container"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         app:layout_behavior="com.google.android.material.appbar.AppBarLayout$ScrollingViewBehavior"/>
+
     <com.google.android.material.floatingactionbutton.FloatingActionButton
         android:id="@+id/fab"
         android:layout_width="wrap_content"
@@ -50,5 +51,6 @@
         android:src="@drawable/ic_filter_list"
         android:layout_gravity="bottom|end"
         app:layout_behavior="com.google.android.material.behavior.HideBottomViewOnScrollBehavior"
-        android:layout_margin="16dp"/>
+        android:layout_margin="16dp"
+        android:contentDescription="@string/filter_people_list" />
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

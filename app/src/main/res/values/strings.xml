@@ -1,26 +1,26 @@
 <!--
-  ~     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+  ~     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
   ~     forked from <https://notabug.org/nvb/MovieDB>
   ~
   ~     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
   ~
-  ~     Movie DB is free software: you can redistribute it and/or modify
+  ~     ShowCase is free software: you can redistribute it and/or modify
   ~     it under the terms of the GNU General Public License as published by
   ~     the Free Software Foundation, either version 3 of the License, or
   ~     (at your option) any later version.
   ~
-  ~     Movie DB is distributed in the hope that it will be useful,
+  ~     ShowCase is distributed in the hope that it will be useful,
   ~     but WITHOUT ANY WARRANTY; without even the implied warranty of
   ~     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
   ~     GNU General Public License for more details.
   ~
   ~     You should have received a copy of the GNU General Public License
-  ~     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+  ~     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
   -->
 
 <resources>
     <!-- Activity names -->
-    <string name="app_name" translatable="false">Movie DB</string>
+    <string name="app_name" translatable="false">ShowCase</string>
 
     <!-- MainActivity -->
 
@@ -133,12 +133,19 @@
     <string name="title_hide_saved_tab">Hide the \'Saved\' tab</string>
     <string name="title_api_language">API Language</string>
     <string name="summary_api_language">Set the language of the API data (locale will be used if left empty).</string>
-    <string name="text_tmdb_credits">This product uses the TMDb API but is not endorsed or certified by TMDb.</string>
+    <string name="text_tmdb_credits">This product uses the TMDB API but is not endorsed or certified by TMDb.</string>
 
     <string name="action_settings">Settings</string>
 
     <!-- (General) Toasts -->
     <string name="no_internet_connection">There is no Internet connection</string>
+
+    <!-- Fragment names -->
+    <string name="title_movies">Movies</string>
+    <string name="title_series">Series</string>
+    <string name="title_saved">Saved</string>
+    <string name="title_account">Account</string>
+    <string name="title_people">People</string>
 
     <!-- Image content descriptions -->
     <string name="collapse_icon_description">Collapses or expands the view</string>
@@ -158,7 +165,6 @@
     <string name="previous_lists">Previous Lists</string>
     <string name="create_new_list">Create New List</string>
     <string name="enter_list_name">Enter List Name</string>
-    <string name="select_directory">Select Directory</string>
     <string name="export">Export</string>
     <string name="login_successful">Login successful</string>
     <string name="experimental">Experimental</string>
@@ -238,16 +244,16 @@
     <string name="tv_show">TV Show</string>
     <string name="type">Type</string>
     <string name="just_watch_attribution">This app uses JustWatch data to show \'Where to watch\' information.</string>
-    <string name="share">Share Movie DB</string>
+    <string name="share">Share ShowCase</string>
     <string name="donate">Donate</string>
     <string name="attribution">Attribution</string>
-    <string name="about_movie_db">About Movie DB</string>
+    <string name="about_movie_db">About</string>
     <string name="image">IMAGE</string>
     <string name="where_to_watch">WHERE TO WATCH ?</string>
     <string name="trailer">TRAILER</string>
     <string name="selected_directory">Path:</string>
-    <string name="export_info">The application allows for the exportation of files in either \"db\" or \"json\" formats. Please note, however, that only the \"db\" format is supported for subsequent import operations.</string>
-    <string name="directory_path">Path: </string>
+    <string name="export_info">The application allows for the exportation of files in \"db\", \"json\" and \"csv\" formats. Please note, however, that only the \"db\" format is supported for subsequent import operations.</string>
+    <string name="directory_path">Path: %1$s</string>
     <string name="no_browser_available">No application can handle this request. Please install a web browser.</string>
     <string name="rate_movie">Rate</string>
     <string name="edit">Edit</string>
@@ -281,4 +287,44 @@
     <string name="no_reviews">Review: Not added</string>
     <string name="default_media_type">Default media type</string>
     <string name="show_shows_as_default_in_the_account_tab">Show \"Shows\" as default in the Account Tab</string>
+    <string name="remember_only_the_year">Don\'t remember the exact Date !</string>
+    <string name="remember_the_full_date">Remember the full Date !</string>
+    <string name="month">MONTH</string>
+    <string name="year">YEAR</string>
+    <string name="keywords">Keywords</string>
+    <string name="search">Search</string>
+    <string name="homepage">Homepage</string>
+    <string name="pick_file">Pick File</string>
+    <string name="error_saving_file">Something went wrong. Error saving file</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="airing_today">Airing Today</string>
+    <string name="upcoming">Upcoming</string>
+    <string name="on_the_air">On The Air</string>
+    <string name="trending">Trending</string>
+    <string name="privacy_policy">Privacy Policy</string>
+    <string name="permission_required_image">This permission is necessary to view the images. Please grant the permission from Settings or App info.</string>
+    <string name="copy">Copy</string>
+    <string name="crash_log">Crash Log</string>
+    <string name="close">Close</string>
+    <string name="file_picked_fail">Failed to pick file</string>
+    <string name="action_account">Account</string>
+    <string name="database_not_found">Database not available</string>
+    <string name="export_channel_name">Database Backup</string>
+    <string name="export_channel_description">Notification for automated database backup</string>
+    <string name="auto_backup_directory_selection">Select Directory for Auto Backup</string>
+    <string name="backup_directory_selected">Backup Directory Selected</string>
+    <string name="enable_auto_backup">Enable Auto Backup</string>
+    <string name="database_backup">Database Backup</string>
+    <string name="database_backup_successful">Database backup completed successfully.</string>
+    <string name="database_backup_failed">Database backup failed. Try giving access to the directory again.</string>
+    <string name="filter_people_list">Filter people list</string>
+    <string name="import_movie_database">Import Movie Database</string>
+    <string name="import_people_database">Import People Database</string>
+    <string name="seasons">Seasons</string>
+    <string name="account_id_fail_try_login_again">Failed to retrieve account id. Try login again.</string>
+    <string name="select_year_and_month">Select Year and Month</string>
+    <string name="no_trailer_available">No trailer available</string>
+    <string name="select_a_date">Select a Date</string>
+    <string name="failed_to_retrieve_account_id">Failed to retrieve account id</string>
+    <string name="season">"Season "</string>
 </resources>

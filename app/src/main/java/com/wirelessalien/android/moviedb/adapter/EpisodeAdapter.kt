@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.adapter
 
@@ -24,21 +24,25 @@ import android.content.Context
 import android.graphics.Color
 import android.icu.text.DateFormat
 import android.icu.text.SimpleDateFormat
+import android.icu.util.Calendar
 import android.os.Handler
 import android.os.Looper
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.NumberPicker
 import android.widget.RatingBar
-import android.widget.RatingBar.OnRatingBarChangeListener
 import android.widget.TextView
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.datepicker.MaterialDatePicker
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textfield.TextInputEditText
 import com.squareup.picasso.Picasso
 import com.wirelessalien.android.moviedb.R
@@ -46,8 +50,8 @@ import com.wirelessalien.android.moviedb.adapter.EpisodeAdapter.EpisodeViewHolde
 import com.wirelessalien.android.moviedb.data.Episode
 import com.wirelessalien.android.moviedb.databinding.EpisodeItemBinding
 import com.wirelessalien.android.moviedb.helper.MovieDatabaseHelper
-import com.wirelessalien.android.moviedb.tmdb.account.AddEpisodeRatingThreadTMDb
-import com.wirelessalien.android.moviedb.tmdb.account.DeleteEpisodeRatingThreadTMDb
+import com.wirelessalien.android.moviedb.tmdb.account.AddEpisodeRating
+import com.wirelessalien.android.moviedb.tmdb.account.DeleteEpisodeRating
 import com.wirelessalien.android.moviedb.tmdb.account.GetAccountStateTvSeason
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +59,6 @@ import kotlinx.coroutines.launch
 import java.text.ParseException
 import java.util.Date
 import java.util.Locale
-import java.util.concurrent.CompletableFuture
 
 class EpisodeAdapter(
     private val context: Context,
@@ -160,6 +163,7 @@ class EpisodeAdapter(
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
         try {
             MovieDatabaseHelper(context).use { db ->
                 val details = db.getEpisodeDetails(tvShowId, seasonNumber, episode.episodeNumber)
@@ -170,12 +174,24 @@ class EpisodeAdapter(
                         holder.binding.episodeDbRating.text =
                             context.getString(R.string.rating_db) + " " + formattedRating
                     }
-                    if (details.watchDate != "00-00-0000") {
-                        val originalFormat = SimpleDateFormat("dd-MM-yyyy", Locale.getDefault())
+                    if (details.watchDate != "0000-00-00") {
+                        val originalFormat = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
                         try {
                             val date = originalFormat.parse(details.watchDate)
-                            val formattedDate =
-                                DateFormat.getDateInstance(DateFormat.DEFAULT).format(date)
+                            val formattedDate = when {
+                                details.watchDate.endsWith("-00-00") -> {
+                                    val year = details.watchDate.substring(0, 4).toInt()
+                                    year.toString()
+                                }
+                                details.watchDate.endsWith("-00") -> {
+                                    val year = details.watchDate.substring(0, 4).toInt()
+                                    val month = details.watchDate.substring(5, 7).toInt()
+                                    String.format(Locale.getDefault(), "%d-%02d", year, month)
+                                }
+                                else -> {
+                                    DateFormat.getDateInstance(DateFormat.DEFAULT).format(date)
+                                }
+                            }
                             holder.binding.watchedDate.text =
                                 context.getString(R.string.watched_on) + " " + formattedDate
                         } catch (e: ParseException) {
@@ -188,6 +204,7 @@ class EpisodeAdapter(
         } catch (e: Exception) {
             e.printStackTrace()
         }
+
         holder.binding.editDetails.setOnClickListener {
             val dialog = BottomSheetDialog(context)
             val inflater = LayoutInflater.from(context)
@@ -195,8 +212,7 @@ class EpisodeAdapter(
             dialog.setContentView(dialogView)
             dialog.show()
             val dateTextView = dialogView.findViewById<TextView>(R.id.dateTextView)
-            val ratingBar = dialogView.findViewById<RatingBar>(R.id.episodeRatingBar)
-            val ratingTextView = dialogView.findViewById<TextView>(R.id.ratingTextView)
+            val ratingEditText = dialogView.findViewById<TextInputEditText>(R.id.episodeRating)
             val submitButton = dialogView.findViewById<Button>(R.id.btnSubmit)
             val cancelButton = dialogView.findViewById<Button>(R.id.btnCancel)
             val dateButton = dialogView.findViewById<Button>(R.id.dateButton)
@@ -212,8 +228,8 @@ class EpisodeAdapter(
                         db.getEpisodeDetails(tvShowId, seasonNumber, episode.episodeNumber)
                     if (details != null) {
                         dateTextView.text = details.watchDate
-                        if (details.rating?.toDouble() != 0.0) {
-                            ratingBar.rating = details.rating!!
+                        if (details.rating?.toDouble() != 0.0 && details.rating != null) {
+                            ratingEditText.setText(details.rating.toString())
                         }
                         reviewEditText.setText(details.review)
                     }
@@ -221,32 +237,49 @@ class EpisodeAdapter(
             } catch (e: Exception) {
                 e.printStackTrace()
             }
-            ratingBar.onRatingBarChangeListener =
-                OnRatingBarChangeListener { ratingBar1: RatingBar?, rating1: Float, fromUser: Boolean ->
-                    ratingTextView.visibility = View.VISIBLE
-                    ratingTextView.text =
-                        String.format(Locale.getDefault(), "%.1f", rating1) // Update rating text
-                }
+
             dateButton.setOnClickListener {
-                val datePicker = MaterialDatePicker.Builder.datePicker().build()
-                datePicker.show(
-                    (context as FragmentActivity).supportFragmentManager,
-                    datePicker.toString()
-                )
-                datePicker.addOnPositiveButtonClickListener { selection: Long? ->
-                    val sdf = SimpleDateFormat("dd-MM-yyyy", Locale.ENGLISH)
-                    val selectedDate = sdf.format(Date(selection!!))
-                    dateTextView.text = selectedDate
+                val formatDialog = BottomSheetDialog(context)
+                val formatView = inflater.inflate(R.layout.dialog_date_format, null)
+                formatDialog.setContentView(formatView)
+                formatDialog.show()
+
+                val yearButton = formatView.findViewById<Button>(R.id.btnYear)
+                val fullDateButton = formatView.findViewById<Button>(R.id.btnFullDate)
+
+                yearButton.setOnClickListener {
+                    showYearMonthPickerDialog(context) { selectedYear, selectedMonth ->
+                        if (selectedMonth == null) {
+                            dateTextView.text = "$selectedYear-00-00"
+                        } else {
+                            dateTextView.text = String.format(Locale.ENGLISH, "%d-%02d-00", selectedYear, selectedMonth)
+                        }
+                    }
+                    formatDialog.dismiss()
+                }
+
+                fullDateButton.setOnClickListener {
+                    val datePicker = MaterialDatePicker.Builder.datePicker()
+                        .setTitleText(context.getString(R.string.select_a_date))
+                        .build()
+                    datePicker.show((context as FragmentActivity).supportFragmentManager, datePicker.toString())
+                    datePicker.addOnPositiveButtonClickListener { selection: Long? ->
+                        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.ENGLISH)
+                        val selectedDate = sdf.format(Date(selection!!))
+                        dateTextView.text = selectedDate
+                    }
+                    formatDialog.dismiss()
                 }
             }
+
             submitButton.setOnClickListener {
                 val date = dateTextView.text.toString()
-                val episodeRating = ratingBar.rating
+                val episodeRating = ratingEditText.text.toString().toDoubleOrNull()?.toFloat() ?: 0.0f
                 val review = reviewEditText.text.toString()
                 val adapterPosition = holder.bindingAdapterPosition
                 val episode1 = episodes[adapterPosition]
                 episode1.setWatchDate(date)
-                episode1.setRating(episodeRating.toDouble())
+                episode1.setRating(episodeRating)
                 episode1.setReview(review)
                 try {
                     MovieDatabaseHelper(context).use { movieDatabaseHelper ->
@@ -267,6 +300,8 @@ class EpisodeAdapter(
             }
             cancelButton.setOnClickListener { dialog.dismiss() }
         }
+
+
         holder.binding.rateBtn.setOnClickListener {
             val dialog = BottomSheetDialog(context)
             val inflater = LayoutInflater.from(context)
@@ -280,11 +315,11 @@ class EpisodeAdapter(
             val episodeTitle = dialogView.findViewById<TextView>(R.id.tvTitle)
             episodeTitle.text =
                 "S:" + seasonNumber + " " + "E:" + episode.episodeNumber + " " + episode.name
-            val mainHandler = Handler(Looper.getMainLooper())
+            Handler(Looper.getMainLooper())
             submitButton.setOnClickListener {
                 CoroutineScope(Dispatchers.Main).launch {
                     val ratingS = ratingBar.rating.toDouble()
-                    AddEpisodeRatingThreadTMDb(
+                    AddEpisodeRating(
                         tvShowId,
                         seasonNumber,
                         episode.episodeNumber,
@@ -296,7 +331,7 @@ class EpisodeAdapter(
             }
             deleteButton.setOnClickListener {
                 CoroutineScope(Dispatchers.Main).launch {
-                    DeleteEpisodeRatingThreadTMDb(
+                    DeleteEpisodeRating(
                         tvShowId,
                         seasonNumber,
                         episode.episodeNumber,
@@ -307,6 +342,47 @@ class EpisodeAdapter(
             }
             cancelButton.setOnClickListener { dialog.dismiss() }
         }
+    }
+
+    private fun showYearMonthPickerDialog(context: Context, onYearMonthSelected: (Int, Int?) -> Unit) {
+        val dialogView = LayoutInflater.from(context).inflate(R.layout.dialog_year_month_picker, null)
+        val yearPicker = dialogView.findViewById<NumberPicker>(R.id.yearPicker)
+        val monthPicker = dialogView.findViewById<NumberPicker>(R.id.monthPicker)
+        val monthTitle = dialogView.findViewById<TextView>(R.id.monthTitle)
+        val monthLayout = dialogView.findViewById<LinearLayout>(R.id.monthLayout)
+        val disableMonthPicker = dialogView.findViewById<MaterialCheckBox>(R.id.disableMonthPicker)
+
+        val currentYear = Calendar.getInstance().get(Calendar.YEAR)
+        yearPicker.minValue = 1900
+        yearPicker.maxValue = currentYear
+        yearPicker.value = currentYear
+
+        val months = arrayOf(
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        )
+        monthPicker.minValue = 0
+        monthPicker.maxValue = months.size - 1
+        monthPicker.displayedValues = months
+        monthPicker.value = Calendar.getInstance().get(Calendar.MONTH)
+
+        disableMonthPicker.setOnCheckedChangeListener { _, isChecked ->
+            monthPicker.isEnabled = !isChecked
+            monthPicker.visibility = if (isChecked) View.GONE else View.VISIBLE
+            monthTitle.visibility = if (isChecked) View.GONE else View.VISIBLE
+            monthLayout.visibility = if (isChecked) View.GONE else View.VISIBLE
+        }
+
+        MaterialAlertDialogBuilder(context)
+            .setTitle(context.getString(R.string.select_year_and_month))
+            .setView(dialogView)
+            .setPositiveButton(context.getString(R.string.ok)) { _, _ ->
+                val selectedYear = yearPicker.value
+                val selectedMonth = if (disableMonthPicker.isChecked) null else monthPicker.value + 1
+                onYearMonthSelected(selectedYear, selectedMonth)
+            }
+            .setNegativeButton(context.getString(R.string.cancel), null)
+            .show()
     }
 
     override fun getItemCount(): Int {

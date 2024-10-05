@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
@@ -39,9 +39,9 @@ import androidx.preference.PreferenceManager
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.squareup.picasso.Picasso
 import com.wirelessalien.android.moviedb.R
-import com.wirelessalien.android.moviedb.tmdb.account.GetAccountDetailsThread
-import com.wirelessalien.android.moviedb.tmdb.account.LogoutThread
-import com.wirelessalien.android.moviedb.tmdb.account.TMDbAuthThreadV4
+import com.wirelessalien.android.moviedb.tmdb.account.GetAccountDetails
+import com.wirelessalien.android.moviedb.tmdb.account.AccountLogout
+import com.wirelessalien.android.moviedb.tmdb.account.TMDbAuthV4
 import de.hdodenhof.circleimageview.CircleImageView
 import kotlinx.coroutines.launch
 
@@ -97,7 +97,7 @@ class LoginFragment : BottomSheetDialogFragment() {
         }
         logoutButton.setOnClickListener {
             lifecycleScope.launch {
-                val logoutManager = LogoutThread(requireContext(), Handler(Looper.getMainLooper()))
+                val logoutManager = AccountLogout(requireContext(), Handler(Looper.getMainLooper()))
                 logoutManager.logout()
                 loginButton.visibility = View.VISIBLE
                 logoutButton.visibility = View.GONE
@@ -107,7 +107,7 @@ class LoginFragment : BottomSheetDialogFragment() {
         }
         loginButton.setOnClickListener {
             lifecycleScope.launch {
-                val authCoroutine = TMDbAuthThreadV4(requireContext())
+                val authCoroutine = TMDbAuthV4(requireContext())
                 val accessToken = authCoroutine.authenticate()
                 if (accessToken != null) {
                     preferences.edit().putString("access_token", accessToken).apply()
@@ -117,7 +117,7 @@ class LoginFragment : BottomSheetDialogFragment() {
 
         if (preferences.getString("access_token", null) != null) {
             lifecycleScope.launch {
-                val getAccountDetailsCoroutine = GetAccountDetailsThread(requireContext(), object : GetAccountDetailsThread.AccountDataCallback {
+                val getAccountDetailsCoroutine = GetAccountDetails(requireContext(), object : GetAccountDetails.AccountDataCallback {
                     override fun onAccountDataReceived(accountId: Int, name: String?, username: String?, avatarPath: String?, gravatar: String?) {
                         if (isAdded) {
                             requireActivity().runOnUiThread {

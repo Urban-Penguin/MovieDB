@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.activity
 
@@ -35,10 +35,11 @@ import com.google.android.flexbox.FlexDirection
 import com.google.android.flexbox.FlexWrap
 import com.google.android.flexbox.FlexboxLayoutManager
 import com.google.android.flexbox.JustifyContent
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.wirelessalien.android.moviedb.R
 import com.wirelessalien.android.moviedb.adapter.MovieImageAdapter
 import com.wirelessalien.android.moviedb.data.MovieImage
-import com.wirelessalien.android.moviedb.helper.DirectoryHelper
+import com.wirelessalien.android.moviedb.helper.CrashHelper
 import com.wirelessalien.android.moviedb.tmdb.GetMovieImage
 
 class MovieImageActivity : AppCompatActivity() {
@@ -49,6 +50,7 @@ class MovieImageActivity : AppCompatActivity() {
     private lateinit var popupWindow: PopupWindow
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashHelper.setDefaultUncaughtExceptionHandler(applicationContext)
         checkAndRequestPermission()
     }
 
@@ -82,15 +84,23 @@ class MovieImageActivity : AppCompatActivity() {
                 // Permission granted, proceed with the activity
                 initializeActivity()
             } else {
-                // Permission denied, request again
-                checkAndRequestPermission()
+                // Permission denied, show dialog and then close the activity
+                showPermissionDeniedDialog()
             }
         }
     }
 
+    private fun showPermissionDeniedDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(getString(R.string.permission_required))
+            .setMessage(getString(R.string.permission_required_image))
+            .setPositiveButton(getString(R.string.ok)) { _, _ -> finish() }
+            .setCancelable(false)
+            .show()
+    }
+
     private fun initializeActivity() {
         setContentView(R.layout.activity_movie_image)
-        DirectoryHelper.createImageDirectory(this)
         movieId = intent.getIntExtra("movieId", 0)
         type = if (intent.getBooleanExtra("isMovie", true)) "movie" else "tv"
         movieImages = emptyList()

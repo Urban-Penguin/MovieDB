@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
@@ -43,16 +43,14 @@ import com.wirelessalien.android.moviedb.adapter.ListDataAdapter
 import com.wirelessalien.android.moviedb.data.ListData
 import com.wirelessalien.android.moviedb.data.ListDetailsData
 import com.wirelessalien.android.moviedb.helper.ListDatabaseHelper
-import com.wirelessalien.android.moviedb.tmdb.account.CreateListThreadTMDb
-import com.wirelessalien.android.moviedb.tmdb.account.FetchListThreadTMDb
+import com.wirelessalien.android.moviedb.tmdb.account.CreateList
+import com.wirelessalien.android.moviedb.tmdb.account.FetchList
 import com.wirelessalien.android.moviedb.tmdb.account.GetAllListData
-import com.wirelessalien.android.moviedb.tmdb.account.ListDetailsThreadTMDb
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
-import java.util.concurrent.CompletableFuture
 
 class ListBottomSheetDialogFragment(
     private val movieId: Int,
@@ -102,7 +100,7 @@ class ListBottomSheetDialogFragment(
             val isPublic = !privateList.isChecked // when checked private radio button, the value is false else true
             lifecycleScope.launch {
                 withContext(Dispatchers.IO) {
-                    CreateListThreadTMDb(listName, description, isPublic, context).createList()
+                    CreateList(listName, description, isPublic, context).createList()
                 }
                 dismiss()
             }
@@ -111,38 +109,41 @@ class ListBottomSheetDialogFragment(
             previousLists.visibility = View.GONE
         }
         if (fetchList) {
-            CompletableFuture.runAsync {
-                val listdatabaseHelper = ListDatabaseHelper(context)
-                val listdb = listdatabaseHelper.readableDatabase
-                val cursor = listdb.query(
-                    true,
-                    ListDatabaseHelper.TABLE_LISTS,
-                    arrayOf(ListDatabaseHelper.COLUMN_LIST_ID, ListDatabaseHelper.COLUMN_LIST_NAME),
-                    null,
-                    null,
-                    null,
-                    null,
-                    null,
-                    null
-                )
-                val listData: MutableList<ListDetailsData> = ArrayList()
-                while (cursor.moveToNext()) {
-                    val listId =
-                        cursor.getInt(cursor.getColumnIndexOrThrow(ListDatabaseHelper.COLUMN_LIST_ID))
-                    val listName =
-                        cursor.getString(cursor.getColumnIndexOrThrow(ListDatabaseHelper.COLUMN_LIST_NAME))
-                    val isMovieInList = checkIfMovieInList(movieId, listName)
-                    listData.add(
-                        ListDetailsData(
-                            movieId,
-                            listId,
-                            listName,
-                            mediaType!!,
-                            isMovieInList
-                        )
+            lifecycleScope.launch {
+                val listData: MutableList<ListDetailsData> = withContext(Dispatchers.IO) {
+                    val listdatabaseHelper = ListDatabaseHelper(context)
+                    val listdb = listdatabaseHelper.readableDatabase
+                    val cursor = listdb.query(
+                        true,
+                        ListDatabaseHelper.TABLE_LISTS,
+                        arrayOf(ListDatabaseHelper.COLUMN_LIST_ID, ListDatabaseHelper.COLUMN_LIST_NAME),
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null
                     )
+                    val listData: MutableList<ListDetailsData> = ArrayList()
+                    while (cursor.moveToNext()) {
+                        val listId =
+                            cursor.getInt(cursor.getColumnIndexOrThrow(ListDatabaseHelper.COLUMN_LIST_ID))
+                        val listName =
+                            cursor.getString(cursor.getColumnIndexOrThrow(ListDatabaseHelper.COLUMN_LIST_NAME))
+                        val isMovieInList = checkIfMovieInList(movieId, listName)
+                        listData.add(
+                            ListDetailsData(
+                                movieId,
+                                listId,
+                                listName,
+                                mediaType!!,
+                                isMovieInList
+                            )
+                        )
+                    }
+                    cursor.close()
+                    listData
                 }
-                cursor.close()
                 if (context is Activity) {
                     context.runOnUiThread {
                         val adapter = ListDataAdapter(listData, context, object : ListDataAdapter.OnItemClickListener {
@@ -196,14 +197,14 @@ class ListBottomSheetDialogFragment(
                 .create()
             progressDialog.show()
             lifecycleScope.launch {
-                val fetchListThreadTMDb =
-                    FetchListThreadTMDb(context, object : FetchListThreadTMDb.OnListFetchListener {
+                val fetchList =
+                    FetchList(context, object : FetchList.OnListFetchListener {
                         override fun onListFetch(listData: List<ListData>?) {
                             if (listData != null) {
                                 for (data in listData) {
                                     listDatabaseHelper.addList(data.id, data.name)
                                     lifecycleScope.launch {
-                                        val listDetailsThreadTMDb = GetAllListData(
+                                        val getListDetails = GetAllListData(
                                             data.id,
                                             context,
                                             object :
@@ -235,14 +236,14 @@ class ListBottomSheetDialogFragment(
                                                 }
                                             }
                                         )
-                                        listDetailsThreadTMDb.fetchAllListData()
+                                        getListDetails.fetchAllListData()
                                     }
                                 }
                             }
                             progressDialog.dismiss()
                         }
                     })
-                fetchListThreadTMDb.fetchLists()
+                fetchList.fetchLists()
                 cursor.close()
             }
         }

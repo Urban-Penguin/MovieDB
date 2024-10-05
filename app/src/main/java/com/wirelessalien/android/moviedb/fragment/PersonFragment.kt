@@ -1,27 +1,26 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
 import android.content.SharedPreferences
 import android.os.Bundle
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -35,6 +34,10 @@ import com.wirelessalien.android.moviedb.activity.BaseActivity
 import com.wirelessalien.android.moviedb.adapter.PersonBaseAdapter
 import com.wirelessalien.android.moviedb.helper.ConfigHelper
 import com.wirelessalien.android.moviedb.helper.PeopleDatabaseHelper
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONException
 import org.json.JSONObject
 import java.io.BufferedReader
@@ -49,15 +52,12 @@ class PersonFragment : BaseFragment() {
     private var mPersonArrayList: ArrayList<JSONObject>? = null
     private var mSearchPersonArrayList: ArrayList<JSONObject>? = null
     private lateinit var mGridLayoutManager: GridLayoutManager
-    private var mSearchThread: Thread? = null
     private var isShowingDatabasePeople = false
     private var API_KEY: String? = null
     private val mSearchQuery: String? = null
     override var mSearchView = false
 
-    // Variables for scroll detection
-    private var visibleThreshold =
-        9 // Three times the amount of items in a row (with three items in a row being the default)
+    private var visibleThreshold = 9
     private var currentPage = 0
     private var currentSearchPage = 0
     private var previousTotal = 0
@@ -65,7 +65,9 @@ class PersonFragment : BaseFragment() {
     private var pastVisibleItems = 0
     private var visibleItemCount = 0
     private var totalItemCount = 0
-    override lateinit var preferences: SharedPreferences
+    private val showIdSet = HashSet<Int>()
+
+    private lateinit var sPreferences: SharedPreferences
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         API_KEY = ConfigHelper.getConfigValue(requireContext().applicationContext, "api_key")
@@ -76,13 +78,13 @@ class PersonFragment : BaseFragment() {
         inflater: LayoutInflater, container: ViewGroup?,
         savedInstanceState: Bundle?
     ): View? {
-        preferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
+        sPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext())
         // Inflate the layout for this fragment
         val fragmentView = inflater.inflate(R.layout.fragment_person, container, false)
         val fab = requireActivity().findViewById<FloatingActionButton>(R.id.fab)
         fab.isEnabled = true
         fab.setImageResource(R.drawable.ic_star)
-        fab.setOnClickListener { v: View? ->
+        fab.setOnClickListener {
             isShowingDatabasePeople = if (!isShowingDatabasePeople) {
                 // Show people from the database
                 showPeopleFromDatabase()
@@ -104,6 +106,7 @@ class PersonFragment : BaseFragment() {
         // Set the adapter with the database people
         mPersonAdapter = PersonBaseAdapter(databasePeople)
         mPersonGridView.adapter = mPersonAdapter
+        showIdSet.clear()
         mPersonAdapter.notifyDataSetChanged()
     }
 
@@ -117,18 +120,9 @@ class PersonFragment : BaseFragment() {
                 do {
                     val person = JSONObject()
                     try {
-                        person.put(
-                            "id",
-                            cursor.getInt(cursor.getColumnIndexOrThrow(PeopleDatabaseHelper.COLUMN_ID))
-                        )
-                        person.put(
-                            "name",
-                            cursor.getString(cursor.getColumnIndexOrThrow(PeopleDatabaseHelper.COLUMN_NAME))
-                        )
-                        person.put(
-                            "profile_path",
-                            cursor.getString(cursor.getColumnIndexOrThrow(PeopleDatabaseHelper.COLUMN_PROFILE_PATH))
-                        )
+                        person.put("id", cursor.getInt(cursor.getColumnIndexOrThrow(PeopleDatabaseHelper.COLUMN_ID)))
+                        person.put("name", cursor.getString(cursor.getColumnIndexOrThrow(PeopleDatabaseHelper.COLUMN_NAME)))
+                        person.put("profile_path", cursor.getString(cursor.getColumnIndexOrThrow(PeopleDatabaseHelper.COLUMN_PROFILE_PATH)))
                         databasePeople.add(person)
                     } catch (e: JSONException) {
                         e.printStackTrace()
@@ -137,7 +131,6 @@ class PersonFragment : BaseFragment() {
             }
             cursor.close()
             db.close()
-            Log.d("PersonFragment", "People from database: $databasePeople")
             return databasePeople
         }
 
@@ -170,9 +163,9 @@ class PersonFragment : BaseFragment() {
         mPersonAdapter = PersonBaseAdapter(mPersonArrayList!!)
         val preferences = PreferenceManager.getDefaultSharedPreferences(requireActivity())
         visibleThreshold *= preferences.getInt(GRID_SIZE_PREFERENCE, 3)
-
+        showIdSet.clear()
         // Get the persons
-        PersonListThread("1").start()
+        fetchPersonList(1)
     }
 
     /**
@@ -187,7 +180,7 @@ class PersonFragment : BaseFragment() {
         // Use a GridLayoutManager
         mGridLayoutManager = GridLayoutManager(
             activity,
-            preferences.getInt(GRID_SIZE_PREFERENCE, 3)
+            sPreferences.getInt(GRID_SIZE_PREFERENCE, 3)
         ) // For now three items in a row seems good, might be changed later on.
         mPersonGridView.layoutManager = mGridLayoutManager
         mPersonGridView.adapter = mPersonAdapter
@@ -214,12 +207,9 @@ class PersonFragment : BaseFragment() {
                     if (!loading && visibleItemCount + pastVisibleItems + visibleThreshold >= totalItemCount) {
                         // Load the next page of the content in the background.
                         if (mSearchView) {
-                            mSearchThread = SearchListThread(
-                                (currentSearchPage + 1).toString(),
-                                mSearchQuery
-                            )
+                            search(mSearchQuery, (currentSearchPage + 1))
                         } else {
-                            PersonListThread((currentPage + 1).toString()).start()
+                            fetchPersonList((currentPage + 1))
                         }
                         loading = true
                     }
@@ -241,11 +231,7 @@ class PersonFragment : BaseFragment() {
 
         // Cancel old AsyncTask if exists.
         currentSearchPage = 1
-        if (mSearchThread != null) {
-            mSearchThread!!.interrupt()
-        }
-        mSearchThread = SearchListThread("1", query)
-        mSearchThread!!.start()
+        search(query, 1)
     }
 
     /**
@@ -258,82 +244,63 @@ class PersonFragment : BaseFragment() {
     }
 
     /**
-     * Uses AsyncTask to retrieve the list with popular people.
+     * Uses Coroutine to retrieve the list with popular people.
      */
-    private inner class PersonListThread(vararg params: String) : Thread() {
-        private val page: Int
-
-        init {
-            page = params[0].toInt()
-        }
-
-        override fun run() {
+    private fun fetchPersonList(page: Int) {
+        CoroutineScope(Dispatchers.Main).launch {
             requireActivity().runOnUiThread {
                 val progressBar = requireActivity().findViewById<ProgressBar>(R.id.progressBar)
                 progressBar.visibility = View.VISIBLE
             }
-            var line: String?
-            val stringBuilder = StringBuilder()
 
-            // Load the webpage with the popular persons
-            try {
-                val url = URL(
-                    "https://api.themoviedb.org/3/person/"
-                            + "popular?page=" + page + "&api_key=" + API_KEY
-                            + BaseActivity.getLanguageParameter(context)
-                )
-                val urlConnection = url.openConnection()
+            val response = withContext(Dispatchers.IO) {
+                var line: String?
+                val stringBuilder = StringBuilder()
+
                 try {
-                    val bufferedReader = BufferedReader(
-                        InputStreamReader(
-                            urlConnection.getInputStream()
-                        )
+                    val url = URL(
+                        "https://api.themoviedb.org/3/person/popular?page=$page&api_key=$API_KEY${BaseActivity.getLanguageParameter(context)}"
                     )
-
-                    // Create one long string of the webpage.
-                    while (bufferedReader.readLine().also { line = it } != null) {
-                        stringBuilder.append(line).append("\n")
+                    val urlConnection = url.openConnection()
+                    try {
+                        val bufferedReader = BufferedReader(InputStreamReader(urlConnection.getInputStream()))
+                        while (bufferedReader.readLine().also { line = it } != null) {
+                            stringBuilder.append(line).append("\n")
+                        }
+                        bufferedReader.close()
+                    } catch (ioe: IOException) {
+                        ioe.printStackTrace()
                     }
-
-                    // Close the connection and return the data from the webpage.
-                    bufferedReader.close()
                 } catch (ioe: IOException) {
                     ioe.printStackTrace()
-                    hideProgressBar()
                 }
-            } catch (ioe: IOException) {
-                ioe.printStackTrace()
-                hideProgressBar()
+                stringBuilder.toString()
             }
-            val response = stringBuilder.toString()
+
             if (response.isNotEmpty()) {
-                // Convert the JSON data from the webpage into JSONObjects
                 try {
                     val reader = JSONObject(response)
                     val arrayData = reader.getJSONArray("results")
+                    val newItems = mutableListOf<JSONObject>()
                     for (i in 0 until arrayData.length()) {
                         val websiteData = arrayData.getJSONObject(i)
-                        mPersonArrayList!!.add(websiteData)
-                    }
-                    requireActivity().runOnUiThread {
-                        if (page == 1) {
-                            mPersonGridView.adapter = mPersonAdapter
-                        } else {
-                            // Reload the adapter (with the new page).
-                            mPersonAdapter.notifyDataSetChanged()
+                        val personId = websiteData.getInt("id")
+                        if (!showIdSet.contains(personId)) {
+                            newItems.add(websiteData)
+                            showIdSet.add(personId)
                         }
-                        hideProgressBar()
+                    }
+                    mPersonArrayList!!.addAll(newItems)
+                    if (page == 1) {
+                        mPersonGridView.adapter = mPersonAdapter
+                    } else {
+                        mPersonAdapter.notifyDataSetChanged()
                     }
                 } catch (je: JSONException) {
                     je.printStackTrace()
-                    hideProgressBar()
                 }
-            } else {
-                hideProgressBar()
             }
-        }
 
-        private fun hideProgressBar() {
             requireActivity().runOnUiThread {
                 val progressBar = requireActivity().findViewById<ProgressBar>(R.id.progressBar)
                 progressBar.visibility = View.GONE
@@ -344,95 +311,91 @@ class PersonFragment : BaseFragment() {
     /**
      * Load a list of persons that fulfill the search query.
      */
-    inner class SearchListThread(page: String, private val query: String?) : Thread() {
-        private val page: Int
-
-        init {
-            this.page = page.toInt()
-        }
-
-        override fun run() {
-            val response = doInBackground()
+    private fun search(query: String?, page: Int) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val response = withContext(Dispatchers.IO) {
+                doInBackground(query, page)
+            }
             if (response != null) {
-                requireActivity().runOnUiThread { onPostExecute(response) }
+                onPostExecute(response)
             }
         }
+    }
 
-        private fun doInBackground(): String? {
-            var line: String?
-            val stringBuilder = StringBuilder()
+    private fun doInBackground(query: String?, page: Int): String? {
+        var line: String?
+        val stringBuilder = StringBuilder()
 
-            // Load the webpage with the popular persons
+        // Load the webpage with the popular persons
+        try {
+            val url = URL(
+                "https://api.themoviedb.org/3/search/person?"
+                        + "query=" + query + "&page=" + page
+                        + "&api_key=" + API_KEY + BaseActivity.getLanguageParameter(context)
+            )
+            val urlConnection = url.openConnection()
             try {
-                val url = URL(
-                    "https://api.themoviedb.org/3/search/person?"
-                            + "query=" + query + "&page=" + page
-                            + "&api_key=" + API_KEY + BaseActivity.getLanguageParameter(context)
-                )
-                val urlConnection = url.openConnection()
-                try {
-                    val bufferedReader = BufferedReader(
-                        InputStreamReader(
-                            urlConnection.getInputStream()
-                        )
+                val bufferedReader = BufferedReader(
+                    InputStreamReader(
+                        urlConnection.getInputStream()
                     )
+                )
 
-                    // Create one long string of the webpage.
-                    while (bufferedReader.readLine().also { line = it } != null) {
-                        stringBuilder.append(line).append("\n")
-                    }
-
-                    // Close the connection and return the data from the webpage.
-                    bufferedReader.close()
-                    return stringBuilder.toString()
-                } catch (ioe: IOException) {
-                    ioe.printStackTrace()
+                // Create one long string of the webpage.
+                while (bufferedReader.readLine().also { line = it } != null) {
+                    stringBuilder.append(line).append("\n")
                 }
+
+                // Close the connection and return the data from the webpage.
+                bufferedReader.close()
+                return stringBuilder.toString()
             } catch (ioe: IOException) {
                 ioe.printStackTrace()
             }
-
-            // Loading the dataset failed, return null.
-            return null
+        } catch (ioe: IOException) {
+            ioe.printStackTrace()
         }
 
-        private fun onPostExecute(response: String?) {
-            // Keep the user at the same position in the list.
-            val position: Int = try {
-                mGridLayoutManager.findFirstVisibleItemPosition()
-            } catch (npe: NullPointerException) {
-                0
-            }
+        // Loading the dataset failed, return null.
+        return null
+    }
 
-            // Clear the ArrayList before adding new movies to it.
-            if (currentSearchPage <= 0) {
-                // Only if the list doesn't already contain search results.
-                mSearchPersonArrayList!!.clear()
-            }
+    private fun onPostExecute(response: String?) {
+        // Keep the user at the same position in the list.
+        val position: Int = try {
+            mGridLayoutManager.findFirstVisibleItemPosition()
+        } catch (npe: NullPointerException) {
+            0
+        }
 
-            // Convert the JSON webpage to JSONObjects.
-            // Add the JSONObjects to the list with persons.
-            if (!(response == null || response == "")) {
-                try {
-                    val reader = JSONObject(response)
-                    val arrayData = reader.getJSONArray("results")
-                    for (i in 0 until arrayData.length()) {
-                        val websiteData = arrayData.getJSONObject(i)
-                        mSearchPersonArrayList!!.add(websiteData)
-                    }
+        // Clear the ArrayList before adding new movies to it.
+        if (currentSearchPage <= 0) {
+            // Only if the list doesn't already contain search results.
+            mSearchPersonArrayList!!.clear()
+        }
 
-                    // Reload the adapter (with the new page)
-                    // and set the user to his old position.
-                    mSearchView = true
-                    mPersonGridView.adapter = mSearchPersonAdapter
-                    mPersonGridView.scrollToPosition(position)
-                    val progressBar = requireActivity().findViewById<ProgressBar>(R.id.progressBar)
-                    progressBar.visibility = View.GONE
-                } catch (je: JSONException) {
-                    je.printStackTrace()
-                    val progressBar = requireActivity().findViewById<ProgressBar>(R.id.progressBar)
-                    progressBar.visibility = View.GONE
+        // Convert the JSON webpage to JSONObjects.
+        // Add the JSONObjects to the list with persons.
+        if (!(response == null || response == "")) {
+            try {
+                val reader = JSONObject(response)
+                val arrayData = reader.getJSONArray("results")
+                for (i in 0 until arrayData.length()) {
+                    val websiteData = arrayData.getJSONObject(i)
+                    mSearchPersonArrayList!!.add(websiteData)
                 }
+
+                // Reload the adapter (with the new page)
+                // and set the user to his old position.
+                mSearchView = true
+                mPersonGridView.adapter = mSearchPersonAdapter
+                mPersonGridView.scrollToPosition(position)
+                val progressBar = requireActivity().findViewById<ProgressBar>(R.id.progressBar)
+                progressBar.visibility = View.GONE
+            } catch (je: JSONException) {
+                je.printStackTrace()
+                val progressBar = requireActivity().findViewById<ProgressBar>(R.id.progressBar)
+                progressBar.visibility = View.GONE
             }
         }
     }
@@ -440,12 +403,6 @@ class PersonFragment : BaseFragment() {
     companion object {
         private const val GRID_SIZE_PREFERENCE = "key_grid_size_number"
 
-        /**
-         * Creates a new ListFragment object and returns it.
-         *
-         * @return the newly created ListFragment object.
-         */
-        @JvmStatic
         fun newInstance(): PersonFragment {
             return PersonFragment()
         }

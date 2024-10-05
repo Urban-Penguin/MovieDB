@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 
 package com.wirelessalien.android.moviedb.activity;
@@ -217,18 +217,24 @@ public class FilterActivity extends AppCompatActivity {
             advancedTitle.setVisibility(View.GONE);
         }
 
-        // Get all existing genres
         SharedPreferences sharedPreferences = getSharedPreferences("GenreList", Context.MODE_PRIVATE);
         String mode = intent.getStringExtra("mode");
 
         try {
-            JSONArray genreArray;
+            JSONArray genreArray = null;
             if (mode != null) {
-                genreArray = new JSONArray(sharedPreferences.getString(mode + "GenreJSONArrayList", null));
+                String genreList = sharedPreferences.getString(mode + "GenreJSONArrayList", null);
+                if (genreList != null) {
+                    genreArray = new JSONArray(genreList);
+                }
             } else {
-                genreArray = concatJSONArray(
-                        new JSONArray(sharedPreferences.getString("movieGenreJSONArrayList", null)),
-                        new JSONArray(sharedPreferences.getString("tvGenreJSONArrayList", null)));
+                String movieGenreList = sharedPreferences.getString("movieGenreJSONArrayList", null);
+                String tvGenreList = sharedPreferences.getString("tvGenreJSONArrayList", null);
+                if (movieGenreList != null && tvGenreList != null) {
+                    genreArray = concatJSONArray(
+                            new JSONArray(movieGenreList),
+                            new JSONArray(tvGenreList));
+                }
             }
 
             if (genreArray != null) {
@@ -240,7 +246,7 @@ public class FilterActivity extends AppCompatActivity {
                     chip.setText(genre.getString("name"));
                     chip.setId(Integer.parseInt(genre.getString("id")));
                     chip.setCheckable(true);
-                    chip.setOnClickListener( v -> {
+                    chip.setOnClickListener(v -> {
                         Chip genreChip = (Chip) v;
                         int chipId = genreChip.getId();
 
@@ -261,7 +267,7 @@ public class FilterActivity extends AppCompatActivity {
                             genreChip.setChipBackgroundColorResource(R.color.md_theme_primary);
                             genreChip.setCloseIconResource(R.drawable.ic_check);
                         }
-                    } );
+                    });
                     chipGroup.addView(chip);
                 }
             }

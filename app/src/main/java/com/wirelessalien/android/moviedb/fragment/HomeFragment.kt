@@ -1,21 +1,21 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.fragment
 
@@ -25,7 +25,6 @@ import android.os.Handler
 import android.os.Looper
 import android.text.Editable
 import android.text.TextWatcher
-import android.util.Log
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -33,6 +32,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ProgressBar
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -48,6 +48,9 @@ import com.wirelessalien.android.moviedb.activity.PersonActivity
 import com.wirelessalien.android.moviedb.adapter.NowPlayingMovieAdapter
 import com.wirelessalien.android.moviedb.adapter.TrendingPagerAdapter
 import com.wirelessalien.android.moviedb.helper.ConfigHelper
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONException
@@ -55,7 +58,6 @@ import org.json.JSONObject
 import java.io.IOException
 import java.net.URL
 import java.util.Optional
-import java.util.concurrent.CompletableFuture
 
 class HomeFragment : BaseFragment() {
     private var mSearchQuery: String? = null
@@ -93,11 +95,13 @@ class HomeFragment : BaseFragment() {
 
     override fun doNetworkWork() {
         if (!mShowListLoaded) {
-            fetchNowPlayingMovies()
-            fetchNowPlayingTVShows()
-            fetchTrendingList()
-            fetchUpcomingMovies()
-            fetchUpcomingTVShows()
+            lifecycleScope.launch {
+                fetchNowPlayingMovies()
+                fetchNowPlayingTVShows()
+                fetchTrendingList()
+                fetchUpcomingMovies()
+                fetchUpcomingTVShows()
+            }
         }
     }
 
@@ -255,8 +259,8 @@ class HomeFragment : BaseFragment() {
         mShowView.adapter = mHomeShowAdapter
     }
 
-    private fun fetchNowPlayingMovies() {
-        CompletableFuture.supplyAsync {
+    private suspend fun fetchNowPlayingMovies() {
+        val response = withContext(Dispatchers.IO) {
             var response: String? = null
             try {
                 val url = URL(
@@ -280,10 +284,10 @@ class HomeFragment : BaseFragment() {
                 e.printStackTrace()
             }
             response
-        }.thenAccept { response: String? ->
-            if (isAdded && !response.isNullOrEmpty()) {
-                handleMovieResponse(response)
-            }
+        }
+
+        if (isAdded && !response.isNullOrEmpty()) {
+            handleMovieResponse(response)
         }
     }
 
@@ -292,6 +296,7 @@ class HomeFragment : BaseFragment() {
             try {
                 val reader = JSONObject(response)
                 val arrayData = reader.getJSONArray("results")
+                mHomeShowArrayList.clear()
                 for (i in 0 until arrayData.length()) {
                     val websiteData = arrayData.getJSONObject(i)
                     mHomeShowArrayList.add(websiteData)
@@ -307,8 +312,8 @@ class HomeFragment : BaseFragment() {
         loading = false
     }
 
-    private fun fetchNowPlayingTVShows() {
-        CompletableFuture.supplyAsync {
+    private suspend fun fetchNowPlayingTVShows() {
+        val response = withContext(Dispatchers.IO) {
             var response: String? = null
             try {
                 val url = URL(
@@ -332,10 +337,10 @@ class HomeFragment : BaseFragment() {
                 e.printStackTrace()
             }
             response
-        }.thenAccept { response: String? ->
-            if (isAdded && !response.isNullOrEmpty()) {
-                handleTVResponse(response)
-            }
+        }
+
+        if (isAdded && !response.isNullOrEmpty()) {
+            handleTVResponse(response)
         }
     }
 
@@ -344,6 +349,7 @@ class HomeFragment : BaseFragment() {
             try {
                 val reader = JSONObject(response)
                 val arrayData = reader.getJSONArray("results")
+                mTVShowArrayList.clear()
                 for (i in 0 until arrayData.length()) {
                     val websiteData = arrayData.getJSONObject(i)
                     mTVShowArrayList.add(websiteData)
@@ -359,8 +365,8 @@ class HomeFragment : BaseFragment() {
         loading = false
     }
 
-    private fun fetchUpcomingTVShows() {
-        CompletableFuture.supplyAsync {
+    private suspend fun fetchUpcomingTVShows() {
+        val response = withContext(Dispatchers.IO) {
             var response: String? = null
             try {
                 val url = URL(
@@ -384,10 +390,10 @@ class HomeFragment : BaseFragment() {
                 e.printStackTrace()
             }
             response
-        }.thenAccept { response: String? ->
-            if (isAdded && !response.isNullOrEmpty()) {
-                handleUpcomingTVResponse(response)
-            }
+        }
+
+        if (isAdded && !response.isNullOrEmpty()) {
+            handleUpcomingTVResponse(response)
         }
     }
 
@@ -396,6 +402,7 @@ class HomeFragment : BaseFragment() {
             try {
                 val reader = JSONObject(response)
                 val arrayData = reader.getJSONArray("results")
+                mUpcomingTVShowArrayList.clear()
                 for (i in 0 until arrayData.length()) {
                     val websiteData = arrayData.getJSONObject(i)
                     mUpcomingTVShowArrayList.add(websiteData)
@@ -411,8 +418,8 @@ class HomeFragment : BaseFragment() {
         loading = false
     }
 
-    private fun fetchUpcomingMovies() {
-        CompletableFuture.supplyAsync {
+    private suspend fun fetchUpcomingMovies() {
+        val response = withContext(Dispatchers.IO) {
             var response: String? = null
             try {
                 val url = URL(
@@ -436,10 +443,10 @@ class HomeFragment : BaseFragment() {
                 e.printStackTrace()
             }
             response
-        }.thenAccept { response: String? ->
-            if (isAdded && !response.isNullOrEmpty()) {
-                handleUpcomingMovieResponse(response)
-            }
+        }
+
+        if (isAdded && !response.isNullOrEmpty()) {
+            handleUpcomingMovieResponse(response)
         }
     }
 
@@ -463,8 +470,8 @@ class HomeFragment : BaseFragment() {
         loading = false
     }
 
-    private fun fetchTrendingList() {
-        CompletableFuture.supplyAsync {
+    private suspend fun fetchTrendingList() {
+        val response = withContext(Dispatchers.IO) {
             var response: String? = null
             try {
                 val url = URL(
@@ -488,10 +495,10 @@ class HomeFragment : BaseFragment() {
                 e.printStackTrace()
             }
             response
-        }.thenAccept { response: String? ->
-            if (isAdded && !response.isNullOrEmpty()) {
-                handleTrendingResponse(response)
-            }
+        }
+
+        if (isAdded && !response.isNullOrEmpty()) {
+            handleTrendingResponse(response)
         }
     }
 
@@ -501,9 +508,13 @@ class HomeFragment : BaseFragment() {
             try {
                 val reader = JSONObject(response)
                 val arrayData = reader.getJSONArray("results")
+                trendingArrayList.clear()
                 for (i in 0 until arrayData.length()) {
                     val websiteData = arrayData.getJSONObject(i)
-                    trendingArrayList.add(websiteData)
+                    val mediaType = websiteData.getString("media_type")
+                    if (mediaType == "movie" || mediaType == "tv") {
+                        trendingArrayList.add(websiteData)
+                    }
                 }
                 val adapter = trandingRv.adapter as TrendingPagerAdapter?
                 if (adapter != null) {
@@ -523,17 +534,13 @@ class HomeFragment : BaseFragment() {
             searchView.findViewById<ProgressBar>(R.id.search_progress_bar)
         )
         progressBar.ifPresent { bar: ProgressBar -> bar.visibility = View.VISIBLE }
-        CompletableFuture.supplyAsync { doInBackground(query) }
-            .thenAccept { response: String? ->
-                if (response != null) {
-                    requireActivity().runOnUiThread {
-                        onPostExecute(response)
-                        hideSearchProgressBar()
-                    }
-                } else {
-                    requireActivity().runOnUiThread { hideSearchProgressBar() }
-                }
+        lifecycleScope.launch {
+            val response = withContext(Dispatchers.IO) { doInBackground(query) }
+            if (response != null) {
+                onPostExecute(response)
             }
+            hideSearchProgressBar()
+        }
     }
 
     private fun doInBackground(query: String): String? {
@@ -543,7 +550,6 @@ class HomeFragment : BaseFragment() {
                 "https://api.themoviedb.org/3/search/multi?"
                         + "query=" + query + "&page=" + currentSearchPage
             )
-            Log.d("Search URL", url.toString())
             val client = OkHttpClient()
             val request = Request.Builder()
                 .url(url)

@@ -1,26 +1,27 @@
 /*
- *     This file is part of Movie DB. <https://github.com/WirelessAlien/MovieDB>
+ *     This file is part of "ShowCase" formerly Movie DB. <https://github.com/WirelessAlien/MovieDB>
  *     forked from <https://notabug.org/nvb/MovieDB>
  *
  *     Copyright (C) 2024  WirelessAlien <https://github.com/WirelessAlien>
  *
- *     Movie DB is free software: you can redistribute it and/or modify
+ *     ShowCase is free software: you can redistribute it and/or modify
  *     it under the terms of the GNU General Public License as published by
  *     the Free Software Foundation, either version 3 of the License, or
  *     (at your option) any later version.
  *
- *     Movie DB is distributed in the hope that it will be useful,
+ *     ShowCase is distributed in the hope that it will be useful,
  *     but WITHOUT ANY WARRANTY; without even the implied warranty of
  *     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  *     GNU General Public License for more details.
  *
  *     You should have received a copy of the GNU General Public License
- *     along with Movie DB.  If not, see <https://www.gnu.org/licenses/>.
+ *     along with "ShowCase".  If not, see <https://www.gnu.org/licenses/>.
  */
 package com.wirelessalien.android.moviedb.activity
 
 
 import android.Manifest
+import android.app.Activity
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.ClipData
@@ -38,9 +39,12 @@ import android.os.Looper
 import android.util.Log
 import android.view.Menu
 import android.view.MenuItem
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.OnBackPressedDispatcher
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.RequiresApi
 import androidx.appcompat.widget.SearchView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
@@ -48,9 +52,11 @@ import androidx.core.app.ActivityCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentContainerView
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
-import androidx.work.OneTimeWorkRequest
+import androidx.work.PeriodicWorkRequest
 import androidx.work.WorkManager
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.bottomnavigation.BottomNavigationView
@@ -59,7 +65,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.navigation.NavigationBarView
 import com.wirelessalien.android.moviedb.R
-import com.wirelessalien.android.moviedb.ReleaseReminderService
+import com.wirelessalien.android.moviedb.adapter.SectionsPagerAdapter
 import com.wirelessalien.android.moviedb.data.ListData
 import com.wirelessalien.android.moviedb.fragment.AccountDataFragment
 import com.wirelessalien.android.moviedb.fragment.BaseFragment
@@ -71,14 +77,11 @@ import com.wirelessalien.android.moviedb.fragment.PersonFragment
 import com.wirelessalien.android.moviedb.fragment.ShowFragment
 import com.wirelessalien.android.moviedb.fragment.ShowFragment.Companion.newInstance
 import com.wirelessalien.android.moviedb.helper.ConfigHelper
-import com.wirelessalien.android.moviedb.helper.DirectoryHelper
 import com.wirelessalien.android.moviedb.helper.ListDatabaseHelper
-import com.wirelessalien.android.moviedb.helper.MovieDatabaseHelper
-import com.wirelessalien.android.moviedb.listener.AdapterDataChangedListener
-import com.wirelessalien.android.moviedb.tmdb.account.FetchListThreadTMDb
+import com.wirelessalien.android.moviedb.tmdb.account.FetchList
 import com.wirelessalien.android.moviedb.tmdb.account.GetAccessToken
 import com.wirelessalien.android.moviedb.tmdb.account.GetAllListData
-import com.wirelessalien.android.moviedb.tmdb.account.ListDetailsThreadTMDb
+import com.wirelessalien.android.moviedb.work.ReleaseReminderWorker
 import kotlinx.coroutines.launch
 import org.json.JSONException
 import org.json.JSONObject
@@ -95,10 +98,11 @@ class MainActivity : BaseActivity() {
     private var mSearchAction: MenuItem? = null
     private var isSearchOpened = false
     private lateinit var preferences: SharedPreferences
-    private lateinit var mAdapterDataChangedListener: AdapterDataChangedListener
-    private lateinit var api_read_access_token: String
+    private lateinit var apiReadAccessToken: String
     private lateinit var context: Context
     private lateinit var prefListener: OnSharedPreferenceChangeListener
+    private lateinit var settingsActivityResultLauncher: ActivityResultLauncher<Intent>
+
     @RequiresApi(api = Build.VERSION_CODES.TIRAMISU)
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
@@ -123,19 +127,21 @@ class MainActivity : BaseActivity() {
             } catch (e: IOException) {
                 e.printStackTrace()
             }
+
+            val dialogView = layoutInflater.inflate(R.layout.dialog_crash_log, null)
+            val textView = dialogView.findViewById<TextView>(R.id.crash_log_text)
+            textView.text = crashLog.toString()
+
             MaterialAlertDialogBuilder(this)
-                .setTitle("Crash Log")
-                .setMessage(crashLog.toString())
-                .setPositiveButton("Copy") { dialog: DialogInterface?, which: Int ->
-                    val clipboard = getSystemService(
-                        CLIPBOARD_SERVICE
-                    ) as ClipboardManager
-                    val clip = ClipData.newPlainText("Movie DB Crash Log", crashLog.toString())
+                .setTitle(getString(R.string.crash_log))
+                .setView(dialogView)
+                .setPositiveButton(getString(R.string.copy)) { _: DialogInterface?, _: Int ->
+                    val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
+                    val clip = ClipData.newPlainText("ShowCase Crash Log", crashLog.toString())
                     clipboard.setPrimaryClip(clip)
-                    Toast.makeText(this@MainActivity, R.string.crash_log_copied, Toast.LENGTH_SHORT)
-                        .show()
+                    Toast.makeText(this@MainActivity, R.string.crash_log_copied, Toast.LENGTH_SHORT).show()
                 }
-                .setNegativeButton("Close", null)
+                .setNegativeButton(getString(R.string.close), null)
                 .show()
             crashLogFile.delete()
         }
@@ -144,7 +150,8 @@ class MainActivity : BaseActivity() {
         PreferenceManager.setDefaultValues(this, R.xml.preferences, false)
         val toolbar = findViewById<MaterialToolbar>(R.id.toolbar)
         setSupportActionBar(toolbar)
-        api_read_access_token = ConfigHelper.getConfigValue(this, "api_read_access_token")!!
+
+        apiReadAccessToken = ConfigHelper.getConfigValue(this, "api_read_access_token")!!
         preferences = PreferenceManager.getDefaultSharedPreferences(this)
         bottomNavigationView = findViewById(R.id.bottom_navigation)
         bottomNavigationView.setOnItemSelectedListener(NavigationBarView.OnItemSelectedListener setOnItemSelectedListener@{ item: MenuItem ->
@@ -187,7 +194,7 @@ class MainActivity : BaseActivity() {
             .setVisible(!preferences.getBoolean(HIDE_SAVED_PREFERENCE, false))
         menu.findItem(R.id.nav_account)
             .setVisible(!preferences.getBoolean(HIDE_ACCOUNT_PREFERENCE, false))
-        prefListener = OnSharedPreferenceChangeListener { prefs: SharedPreferences?, key: String? ->
+        prefListener = OnSharedPreferenceChangeListener { _: SharedPreferences?, key: String? ->
             if (key == HIDE_MOVIES_PREFERENCE || key == HIDE_SERIES_PREFERENCE || key == HIDE_SAVED_PREFERENCE || key == HIDE_ACCOUNT_PREFERENCE) {
                 val menu1 = bottomNavigationView.menu
                 menu1.findItem(R.id.nav_movie)
@@ -207,7 +214,6 @@ class MainActivity : BaseActivity() {
             }
         }
 
-        // Register the listener
         preferences.registerOnSharedPreferenceChangeListener(prefListener)
         val fab = findViewById<FloatingActionButton>(R.id.fab)
         bottomNavigationView.viewTreeObserver.addOnGlobalLayoutListener {
@@ -216,6 +222,23 @@ class MainActivity : BaseActivity() {
             params.bottomMargin = bottomNavHeight + 16
             fab.layoutParams = params
         }
+
+        val fragmentContainerView = findViewById<FragmentContainerView>(R.id.container)
+        fragmentContainerView.viewTreeObserver.addOnGlobalLayoutListener {
+            val bottomNavHeight = bottomNavigationView.height
+            val params = fragmentContainerView.layoutParams as CoordinatorLayout.LayoutParams
+            params.bottomMargin = bottomNavHeight
+            fragmentContainerView.layoutParams = params
+        }
+
+        supportFragmentManager.registerFragmentLifecycleCallbacks(object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentResumed(fm: FragmentManager, f: Fragment) {
+                super.onFragmentResumed(fm, f)
+                updateToolbarTitle(f)
+            }
+        }, true)
+
+
         OnBackPressedDispatcher().addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 if (isSearchOpened) {
@@ -225,37 +248,41 @@ class MainActivity : BaseActivity() {
                 }
             }
         })
-        if (ActivityCompat.checkSelfPermission(
-                this,
-                Manifest.permission.POST_NOTIFICATIONS
-            ) != PackageManager.PERMISSION_GRANTED
-        ) {
-            if (ActivityCompat.shouldShowRequestPermissionRationale(
-                    this,
-                    Manifest.permission.POST_NOTIFICATIONS
-                )
-            ) {
+
+        settingsActivityResultLauncher = registerForActivityResult(
+            ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data = result.data
+                if (data != null) {
+                    val pagerChanged = data.getBooleanExtra("pager_changed", false)
+                    if (pagerChanged) {
+                        setResult(RESULT_SETTINGS_PAGER_CHANGED)
+                    }
+                }
+            }
+        }
+
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            if (ActivityCompat.shouldShowRequestPermissionRationale(this, Manifest.permission.POST_NOTIFICATIONS)) {
                 MaterialAlertDialogBuilder(this)
                     .setTitle(R.string.permission_required)
                     .setMessage(R.string.permission_required_description)
-                    .setPositiveButton(R.string.ok) { dialog: DialogInterface?, which: Int ->
+                    .setPositiveButton(R.string.ok) { _: DialogInterface?, _: Int ->
                         ActivityCompat.requestPermissions(
                             this@MainActivity, arrayOf(
                                 Manifest.permission.POST_NOTIFICATIONS
                             ), REQUEST_CODE
                         )
                     }
-                    .setNegativeButton(R.string.cancel) { dialog: DialogInterface, which: Int -> dialog.dismiss() }
+                    .setNegativeButton(R.string.cancel) { dialog: DialogInterface, _: Int -> dialog.dismiss() }
                     .create().show()
             } else {
-                ActivityCompat.requestPermissions(
-                    this,
-                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-                    REQUEST_CODE
-                )
+                ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), REQUEST_CODE)
             }
             return
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name: CharSequence = getString(R.string.released_movies)
             val description = getString(R.string.notification_for_movie_released)
@@ -267,6 +294,7 @@ class MainActivity : BaseActivity() {
             )
             notificationManager.createNotificationChannel(channel)
         }
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val name: CharSequence = getString(R.string.aired_episodes)
             val description = getString(R.string.notification_for_episode_air)
@@ -278,18 +306,20 @@ class MainActivity : BaseActivity() {
             )
             notificationManager.createNotificationChannel(channel)
         }
-        val workRequest: OneTimeWorkRequest = OneTimeWorkRequest.Builder(ReleaseReminderService::class.java)
-            .setInitialDelay(24, TimeUnit.HOURS)
+
+        val periodicWorkRequest = PeriodicWorkRequest.Builder(ReleaseReminderWorker::class.java, 1, TimeUnit.DAYS)
             .build()
-        WorkManager.getInstance(this).enqueue(workRequest)
+        WorkManager.getInstance(this).enqueue(periodicWorkRequest)
+
         val nIntent = intent
         if (nIntent != null && nIntent.hasExtra("tab_index")) {
             val tabIndex = nIntent.getIntExtra("tab_index", 0)
             bottomNavigationView.selectedItemId = tabIndex
         }
-        val access_token = preferences.getString("access_token", null)
+
+        val accessToken = preferences.getString("access_token", null)
         val hasRunOnce = preferences.getBoolean("hasRunOnce", false)
-        if (!hasRunOnce && access_token != null && access_token != "") {
+        if (!hasRunOnce && accessToken != null && accessToken != "") {
             val listDatabaseHelper = ListDatabaseHelper(this@MainActivity)
             val db = listDatabaseHelper.readableDatabase
             val cursor = db.rawQuery("SELECT * FROM " + ListDatabaseHelper.TABLE_LISTS, null)
@@ -303,7 +333,7 @@ class MainActivity : BaseActivity() {
 
                 lifecycleScope.launch {
                     try {
-                        val fetchListCoroutineTMDb = FetchListThreadTMDb(this@MainActivity, object : FetchListThreadTMDb.OnListFetchListener {
+                        val fetchListCoroutineTMDb = FetchList(this@MainActivity, object : FetchList.OnListFetchListener {
                             override fun onListFetch(listData: List<ListData>?) {
                                 if (listData != null) {
                                     for (data in listData) {
@@ -357,6 +387,20 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    private fun updateToolbarTitle(fragment: Fragment) {
+        val title = when (fragment) {
+            is HomeFragment -> getString(R.string.app_name)
+            is ShowFragment -> {
+                val listType = fragment.arguments?.getString(ShowFragment.ARG_LIST_TYPE)
+                if (listType == SectionsPagerAdapter.MOVIE) getString(R.string.title_movies) else getString(R.string.title_series)
+            }
+            is ListFragment -> getString(R.string.title_saved)
+            is AccountDataFragment -> getString(R.string.title_account)
+            else -> getString(R.string.app_name)
+        }
+        supportActionBar?.title = title
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         val uri = intent.data
@@ -372,18 +416,20 @@ class MainActivity : BaseActivity() {
 
                     lifecycleScope.launch {
                         val getAccessToken = GetAccessToken(
-                            api_read_access_token,
+                            apiReadAccessToken,
                             requestToken,
                             this@MainActivity,
                             null,
                             object : GetAccessToken.OnTokenReceivedListener {
                                 override fun onTokenReceived(accessToken: String?) {
                                     lifecycleScope.launch {
-                                        val fetchListCoroutineTMDb = FetchListThreadTMDb(
+                                        val listDatabaseHelper = ListDatabaseHelper(this@MainActivity)
+                                        listDatabaseHelper.deleteAllData()
+
+                                        val fetchListCoroutineTMDb = FetchList(
                                             this@MainActivity,
-                                            object : FetchListThreadTMDb.OnListFetchListener {
+                                            object : FetchList.OnListFetchListener {
                                                 override fun onListFetch(listData: List<ListData>?) {
-                                                    val listDatabaseHelper = ListDatabaseHelper(this@MainActivity)
                                                     for (data in listData!!) {
                                                         listDatabaseHelper.addList(data.id, data.name)
                                                         val listDetailsCoroutineTMDb = GetAllListData(
@@ -469,9 +515,10 @@ class MainActivity : BaseActivity() {
             handleMenuSearch()
             return true
         }
+
         if (id == R.id.action_settings) {
             val intent = Intent(applicationContext, SettingsActivity::class.java)
-            startActivityForResult(intent, SETTINGS_REQUEST_CODE)
+            settingsActivityResultLauncher.launch(intent)
             return true
         }
         if (id == R.id.action_login) {
@@ -479,17 +526,6 @@ class MainActivity : BaseActivity() {
             loginFragment.show(supportFragmentManager, "login")
         }
         return super.onOptionsItemSelected(item)
-    }
-
-    public override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        val fragmentManager = supportFragmentManager
-        val mCurrentFragment = fragmentManager.findFragmentById(R.id.container)
-        if (mCurrentFragment != null) {
-            mCurrentFragment.onActivityResult(requestCode, resultCode, data)
-        } else {
-            super.onActivityResult(requestCode, resultCode, data)
-        }
-        super.onActivityResult(requestCode, resultCode, data)
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
@@ -506,16 +542,16 @@ class MainActivity : BaseActivity() {
             REQUEST_CODE_ASK_PERMISSIONS_EXPORT -> {
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // Permission Granted
-                    val databaseHelper = MovieDatabaseHelper(this)
-                    databaseHelper.exportDatabase(this)
+                    val intent = Intent(applicationContext, ExportActivity::class.java)
+                    startActivity(intent)
                 } // else: permission denied
             }
 
             REQUEST_CODE_ASK_PERMISSIONS_IMPORT -> {
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
                     // Permission Granted
-                    val databaseHelper = MovieDatabaseHelper(this)
-                    databaseHelper.importDatabase(this, mAdapterDataChangedListener)
+                    val intent = Intent(applicationContext, ImportActivity::class.java)
+                    startActivity(intent)
                 } // else: permission denied
             }
 
@@ -595,7 +631,6 @@ class MainActivity : BaseActivity() {
     }
 
     companion object {
-        private const val SETTINGS_REQUEST_CODE = 1
         const val RESULT_SETTINGS_PAGER_CHANGED = 1001
         private const val REQUEST_CODE_ASK_PERMISSIONS_EXPORT = 123
         private const val REQUEST_CODE_ASK_PERMISSIONS_IMPORT = 124
